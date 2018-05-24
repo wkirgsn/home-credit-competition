@@ -1,5 +1,5 @@
 """
-Author: Kirgsn, 2017, https://www.kaggle.com/wkirgsn
+Author: Kirgsn, 2018, https://www.kaggle.com/wkirgsn
 """
 import time
 
@@ -11,6 +11,11 @@ from sklearn.pipeline import FeatureUnion, Pipeline, make_pipeline, make_union
 from sklearn.base import BaseEstimator, TransformerMixin
 
 import preprocessing.config as cfg
+
+"""
+CAUTION!
+THIS FILE IS UNDER HEAVY CONSTRUCTION!
+"""
 
 
 def measure_time(func):
@@ -46,55 +51,43 @@ class ColumnManager:
         return self._y
 
     def update(self, df):
-        x_cols = []
-        for col in df.columns:
-            for p in cfg.data_cfg['Input_param_names']:
-                if p in col:
-                    x_cols.append(col)
-                    break
-            else:
-                # col hasn't matched the pattern, check whitelist
-                if col in self.white_list:
-                    x_cols.append(col)
-        self.x_cols = x_cols
+        self.x_cols = list(df.columns)
 
 
 class DataManager:
 
-    PROFILE_ID_COL = 'profile_id'
-    START_OF_PROFILE_COL = 'p_start'
-
-    def __init__(self, path, create_hold_out=True):
+    def __init__(self, use_cv=True):
         # original data
-        self.dataset = pd.read_csv(path, dtype=np.float32)
-        # When using CV, do not create a hold out
-        self.has_hold_out = create_hold_out
+        train = pd.read_csv("../data/raw/application_train.csv")
+        test = pd.read_csv("../data/raw/application_test.csv")
+        bureau = pd.read_csv("../data/raw/bureau.csv")
+        previous_app = pd.read_csv("../data/raw/previous_application.csv")
+        bureau_balance = pd.read_csv("../data/raw/bureau_balance.csv")
+        credit_cb = pd.read_csv("../data/raw/credit_card_balance.csv")
+        installments_pay = pd.read_csv("../data/raw/installments_payments.csv")
+        POS_CASH_b = pd.read_csv("../data/raw/POS_CASH_balance.csv")
 
-        # downsample
-        #self.dataset = self.dataset.iloc[::2, :]
-        # drop profiles
-        """drop_p = ['11', ]
-        self.dataset.drop(axis=1, inplace=True, index=self.dataset[self.dataset[
-            self.PROFILE_ID_COL].isin(drop_p)].index)"""
-        # feature engineered dataset
-        self.df = self.dataset.copy()
+        # When using CV, do not create a hold out (out-of-fold)
+        self.has_fix_oof = not use_cv
 
         # column management
-        self.cl = ColumnManager(self.df)
-        self.cl.x_cols = cfg.data_cfg['Input_param_names']
+        self.cl = ColumnManager(self.train)
 
         # build pipeline building blocks
+        self.pipe = self.build_pipeline()
+
+    def build_pipeline(self):
         featurize_union = FeatureUnion([('simple_trans_y',
-                                        SimpleTransformer(np.sqrt,
-                                                          np.square,
-                                                          self.cl.y_cols
-                                                          )),
+                                         SimpleTransformer(np.sqrt,
+                                                           np.square,
+                                                           self.cl.y_cols
+                                                           )),
                                         ('identity_x', Router(self.cl.x_cols)),
-                                       ('lag_feats_x',
-                                        LagFeatures(self.cl.x_cols)),
-                                       ('rolling_feats_x',
-                                        RollingFeatures(self.cl.x_cols,
-                                                        lookback=100)),
+                                        ('lag_feats_x',
+                                         LagFeatures(self.cl.x_cols)),
+                                        ('rolling_feats_x',
+                                         RollingFeatures(self.cl.x_cols,
+                                                         lookback=100)),
                                         ('start_of_profile',
                                          SimpleTransformer(
                                              self.indicate_start_of_profile,
@@ -118,57 +111,24 @@ class DataManager:
         scaling_union = FeatureUnion([('scaler_x', Scaler(StandardScaler(),
                                                           self.cl,
                                                           select='x')),
-                                     ('scaler_y', Scaler(StandardScaler(),
-                                                         self.cl, select='y')),
+                                      ('scaler_y', Scaler(StandardScaler(),
+                                                          self.cl, select='y')),
 
-                                     ('start_of_profile', col_router_pstart)
-                                     ])
+                                      ('start_of_profile', col_router_pstart)
+                                      ])
         scaling_pipe = FeatureUnionReframer.make_df_retaining(scaling_union)
 
         poly_union = make_union(Polynomials(degree=2, colmanager=self.cl),
                                 col_router_pstart, col_router_y)
         poly_pipe = FeatureUnionReframer.make_df_retaining(poly_union)
 
-        self.pipe = Pipeline([
-            ('feat_engineer', featurize_pipe),
-            ('cleaning', DFCleaner()),
-            ('scaler', scaling_pipe),
-            ('poly', poly_pipe),
-            ('ident', None)
-        ])
-
-    @property
-    def tra_df(self):
-        testsets = cfg.data_cfg['testset']
-        valsets = cfg.data_cfg['valset']
-        profiles_to_exclude = \
-            testsets + valsets if self.has_hold_out else testsets
-        sub_df = \
-            self.df[~self.df[self.PROFILE_ID_COL].isin(profiles_to_exclude)]
-        sub_df.reset_index(drop=True, inplace=True)
-        self.cl.update(sub_df)
-        return sub_df
-
-    @property
-    def val_df(self):
-        sub_df = \
-            self.df[self.df[self.PROFILE_ID_COL].isin(cfg.data_cfg['valset'])]
-        sub_df.reset_index(drop=True, inplace=True)
-        return sub_df
-
-    @property
-    def tst_df(self):
-        sub_df = self.df[self.df[self.PROFILE_ID_COL].isin(cfg.data_cfg[
-                                                             'testset'])]
-        sub_df.reset_index(drop=True, inplace=True)
-        return sub_df
-
-    @property
-    def actual(self):
-        sub_df = self.dataset[self.dataset[self.PROFILE_ID_COL].isin(
-            cfg.data_cfg[
-                                                            'testset'])]
-        return sub_df[self.cl.y_cols].reset_index(drop=True)
+        return Pipeline([
+                    ('feat_engineer', featurize_pipe),
+                    ('cleaning', DFCleaner()),
+                    ('scaler', scaling_pipe),
+                    ('poly', poly_pipe),
+                    ('ident', None)
+                ])
 
     @measure_time
     def get_featurized_sets(self):
@@ -186,30 +146,10 @@ class DataManager:
         return tra_df, val_df, tst_df
 
     def inverse_prediction(self, pred):
-        simple_transformer = {k: v for k, v in
-                              self.pipe
-                                  .named_steps['feat_engineer']
-                                  .named_steps['union']
-                                  .transformer_list}['simple_trans_y']
-
-        scaler = {k: v for k, v in
-                  self.pipe
-                      .named_steps['scaler']
-                      .named_steps['union']
-                      .transformer_list}['scaler_y']
-
-        reduced_pipe = make_pipeline(simple_transformer, scaler)
-
-        inversed = pd.DataFrame(reduced_pipe.inverse_transform(pred),
-                                columns=self.cl.y_cols)
-        return inversed
+        pass
 
     def plot(self):
-        from pandas.plotting import autocorrelation_plot
-        import matplotlib.pyplot as plt
-        self.df[[c for c in self.x_cols if 'rolling' in c] + self.y_cols]\
-            .plot(subplots=True, sharex=True)
-        plt.show()
+        pass
 
     def indicate_start_of_profile(self, s):
         """Returns a DataFrame where the first observation of each new profile
@@ -222,7 +162,7 @@ class DataManager:
     @staticmethod
     def sum_of_squares(df):
         """ Return a DataFrame with a single column that is the sum of all
-        columns squared"""
+        columns of the given dataframe squared"""
         assert isinstance(df, pd.DataFrame)
         colnames = ["{}^2".format(c) for c in list(df.columns)]
         return pd.DataFrame(data=np.square(df).sum(axis=1),

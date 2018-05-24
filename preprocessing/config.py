@@ -1,9 +1,9 @@
 import numpy as np
 from hyperopt import hp
 
-debug_cfg = {'DEBUG': False,
+debug_cfg = {'DEBUG': True,
              'choose_debug_on_gpu_availability': False,
-             'n_debug': 100,  # first n timestamps to use if debug
+             'n_debug': 1000,  # first n timestamps to use if debug
              }
 
 data_cfg = {
@@ -16,10 +16,7 @@ data_cfg = {
                           'i_d',
                           'i_q'
                            ],
-    'Target_param_names': ['pm',
-                           'stator_yoke',
-                           'stator_tooth',
-                           'stator_winding'],
+    'Target_param_names': ['TARGET'],
     'lookback': 1,
     'valset': ['31', ],
     'testset': ['20', ],
@@ -65,14 +62,20 @@ keras_cfg = {
 }
 
 lgbm_cfg = {
-    'params': {'n_estimators': 10000,
-               'colsample_bytree': 0.67143,
-               'num_leaves': 180,
-               'scale_pos_weight': 6427,
-               'max_depth': 48,
-               'min_child_weight': 10.11,
-               'random_state': 2340,
-               },
+    'params': {'n_estimators':4000,
+                'learning_rate':0.03,
+                'num_leaves':30,
+                'colsample_bytree':.8,
+                'subsample':.9,
+                'max_depth':7,
+                'reg_alpha':.1,
+                'reg_lambda':.1,
+                'min_split_gain':.01,
+                'min_child_weight':2,
+                'silent':True,
+                'verbose':-1,
+                'random_state': 10
+       },
     'params_found_by_skopt': {'n_estimators': 10000,
                               'scale_pos_weight': 10000.0,
                               'min_child_weight': 2.2756358867092463,

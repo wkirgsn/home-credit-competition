@@ -7,6 +7,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 import lightgbm
 
+import preprocessing.config as cfg
+from preprocessing.data import DataManager
 
 """Sources: 
 https://www.kaggle.com/yekenot/catboostarter/code
@@ -16,23 +18,33 @@ warnings.filterwarnings("ignore")
 SEED = 2018
 np.random.seed(SEED)
 
+lbl_user_id = 'SK_ID_CURR'
+lbl_y = 'TARGET'
+
 
 def main():
+    n_rows_to_read = \
+        cfg.debug_cfg['n_debug'] if cfg.debug_cfg['DEBUG'] else None
 
-    application_train = pd.read_csv("data/raw/application_train.csv")
-    application_test = pd.read_csv("data/raw/application_test.csv")
-    POS_CASH = pd.read_csv('data/raw/POS_CASH_balance.csv')
-    credit_card = pd.read_csv('data/raw/credit_card_balance.csv')
-    bureau = pd.read_csv('data/raw/bureau.csv')
-    previous_app = pd.read_csv('data/raw/previous_application.csv')
-    subm = pd.read_csv("data/raw/sample_submission.csv")
+    print('load data..')
+    application_train = pd.read_csv("data/raw/application_train.csv",
+                                    nrows=n_rows_to_read)
+    application_test = pd.read_csv("data/raw/application_test.csv",
+                                   nrows=n_rows_to_read)
+    POS_CASH = pd.read_csv('data/raw/POS_CASH_balance.csv',
+                           nrows=n_rows_to_read)
+    credit_card = pd.read_csv('data/raw/credit_card_balance.csv',
+                              nrows=n_rows_to_read)
+    bureau = pd.read_csv('data/raw/bureau.csv', nrows=n_rows_to_read)
+    previous_app = pd.read_csv('data/raw/previous_application.csv',
+                               nrows=n_rows_to_read)
 
     print("Converting...")
     le = LabelEncoder()
     POS_CASH['NAME_CONTRACT_STATUS'] = \
         le.fit_transform(POS_CASH['NAME_CONTRACT_STATUS'].astype(str))
     nunique_status = \
-        POS_CASH[['SK_ID_CURR', 'NAME_CONTRACT_STATUS']].groupby('SK_ID_CURR').nunique()
+        POS_CASH[[lbl_user_id, 'NAME_CONTRACT_STATUS']].groupby(lbl_user_id).nunique()
     POS_CASH['NUNIQUE_STATUS'] = \
         nunique_status['NAME_CONTRACT_STATUS']
     POS_CASH.drop(['SK_ID_PREV', 'NAME_CONTRACT_STATUS'], axis=1, inplace=True)
@@ -40,15 +52,15 @@ def main():
     credit_card['NAME_CONTRACT_STATUS'] = \
         le.fit_transform(credit_card['NAME_CONTRACT_STATUS'].astype(str))
     nunique_status = \
-        credit_card[['SK_ID_CURR', 'NAME_CONTRACT_STATUS']]\
-            .groupby('SK_ID_CURR').nunique()
+        credit_card[[lbl_user_id, 'NAME_CONTRACT_STATUS']]\
+            .groupby(lbl_user_id).nunique()
     credit_card['NUNIQUE_STATUS'] = nunique_status['NAME_CONTRACT_STATUS']
     credit_card.drop(['SK_ID_PREV', 'NAME_CONTRACT_STATUS'], axis=1, inplace=True)
 
     bureau_cat_features = [f for f in bureau.columns if bureau[f].dtype == 'object']
     for f in bureau_cat_features:
         bureau[f] = le.fit_transform(bureau[f].astype(str))
-        nunique = bureau[['SK_ID_CURR', f]].groupby('SK_ID_CURR').nunique()
+        nunique = bureau[[lbl_user_id, f]].groupby(lbl_user_id).nunique()
         bureau['NUNIQUE_'+f] = nunique[f]
         bureau.drop([f], axis=1, inplace=True)
     bureau.drop(['SK_ID_BUREAU'], axis=1, inplace=True)
@@ -56,43 +68,42 @@ def main():
     previous_app_cat_features = [f for f in previous_app.columns if previous_app[f].dtype == 'object']
     for f in previous_app_cat_features:
         previous_app[f] = le.fit_transform(previous_app[f].astype(str))
-        nunique = previous_app[['SK_ID_CURR', f]].groupby('SK_ID_CURR').nunique()
+        nunique = previous_app[[lbl_user_id, f]].groupby(lbl_user_id).nunique()
         previous_app['NUNIQUE_'+f] = nunique[f]
         previous_app.drop([f], axis=1, inplace=True)
     previous_app.drop(['SK_ID_PREV'], axis=1, inplace=True)
 
     print("Merging...")
+    # calc means of all features per user id
+    pos_cash_mean_per_id = POS_CASH.groupby(lbl_user_id).mean().reset_index()
+    credit_card_mean_per_id = credit_card.groupby(lbl_user_id).mean().reset_index()
+    bureau_mean_per_id = bureau.groupby(lbl_user_id).mean().reset_index()
+    previous_app_mean_per_id = previous_app.groupby(lbl_user_id).mean().reset_index()
+
+    # merge to dataset
     data_train = \
-        application_train.merge(POS_CASH.groupby('SK_ID_CURR').mean().reset_index(),
-                                how='left', on='SK_ID_CURR')
+        application_train.merge(pos_cash_mean_per_id, how='left', on=lbl_user_id)
     data_test = \
-        application_test.merge(POS_CASH.groupby('SK_ID_CURR').mean().reset_index(),
-                               how='left', on='SK_ID_CURR')
+        application_test.merge(pos_cash_mean_per_id, how='left', on=lbl_user_id)
 
     data_train = \
-        data_train.merge(credit_card.groupby('SK_ID_CURR').mean().reset_index(),
-                         how='left', on='SK_ID_CURR')
+        data_train.merge(credit_card_mean_per_id, how='left', on=lbl_user_id)
     data_test = \
-        data_test.merge(credit_card.groupby('SK_ID_CURR').mean().reset_index(),
-                        how='left', on='SK_ID_CURR')
+        data_test.merge(credit_card_mean_per_id, how='left', on=lbl_user_id)
 
     data_train = \
-        data_train.merge(bureau.groupby('SK_ID_CURR').mean().reset_index(),
-                         how='left', on='SK_ID_CURR')
+        data_train.merge(bureau_mean_per_id, how='left', on=lbl_user_id)
     data_test = \
-        data_test.merge(bureau.groupby('SK_ID_CURR').mean().reset_index(),
-                        how='left', on='SK_ID_CURR')
+        data_test.merge(bureau_mean_per_id, how='left', on=lbl_user_id)
 
     data_train = \
-        data_train.merge(previous_app.groupby('SK_ID_CURR').mean().reset_index(),
-                         how='left', on='SK_ID_CURR')
+        data_train.merge(previous_app_mean_per_id, how='left', on=lbl_user_id)
     data_test = \
-        data_test.merge(previous_app.groupby('SK_ID_CURR').mean().reset_index(),
-                        how='left', on='SK_ID_CURR')
+        data_test.merge(previous_app_mean_per_id, how='left', on=lbl_user_id)
 
-    target_train = data_train['TARGET']
-    data_train.drop(['SK_ID_CURR', 'TARGET'], axis=1, inplace=True)
-    data_test.drop(['SK_ID_CURR'], axis=1, inplace=True)
+    target_train = data_train[lbl_y]
+    data_train.drop([lbl_user_id, lbl_y], axis=1, inplace=True)
+    data_test.drop([lbl_user_id], axis=1, inplace=True)
 
     cat_features = [f for f in data_train.columns if data_train[f].dtype == 'object']
     def column_index(df, query_cols):
@@ -109,43 +120,36 @@ def main():
 
     data_train.fillna(-1, inplace=True)
     data_test.fillna(-1, inplace=True)
-    cols = data_train.columns
 
-    X_train, X_valid, y_train, y_valid = train_test_split(data_train, target_train,
+    X_train, X_valid, y_train, y_valid = train_test_split(data_train,
+                                                          target_train,
                                                           test_size=0.1,
                                                           random_state=SEED)
     print(X_train.shape)
     print(X_valid.shape)
 
     print("\nSetup LGBM...")
-    lgbm_params = {
-        'n_estimators':4000,
-        'learning_rate':0.03,
-        'num_leaves':30,
-        'colsample_bytree':.8,
-        'subsample':.9,
-        'max_depth':7,
-        'reg_alpha':.1,
-        'reg_lambda':.1,
-        'min_split_gain':.01,
-        'min_child_weight':2,
-        'silent':True,
-        'verbose':-1,
-    }
-    model = lightgbm.LGBMClassifier(**lgbm_params)
+    model = lightgbm.LGBMClassifier(**cfg.lgbm_cfg['params'])
 
     model.fit(X_train, y_train, eval_set=(X_valid, y_valid),
               verbose=100, eval_metric='auc', early_stopping_rounds=150)
 
-    fea_imp = pd.DataFrame({'imp': model.feature_importances_, 'col': cols})
-    fea_imp = fea_imp.sort_values(['imp', 'col'], ascending=[True, False]).iloc[-30:]
-    #_ = fea_imp.plot(kind='barh', x='col', y='imp', figsize=(20, 10))
+    # plot_feat_importances(model, list(data_train.columns))
 
     print('AUC:', roc_auc_score(y_valid, model.predict_proba(X_valid)[:,1]))
     y_preds = model.predict_proba(data_test)[:, 1]
-    subm['TARGET'] = y_preds
+    data_test[lbl_y] = y_preds
+    subm = data_test.loc[:, [lbl_user_id, lbl_y]]
     subm.to_csv('data/out/submission.csv', index=False)
 
 
-if __name__=='__main__':
+def plot_feat_importances(_mdl, _cols):
+    fea_imp = pd.DataFrame({'imp': _mdl.feature_importances_,
+                            'col': _cols})
+    fea_imp = fea_imp.sort_values(['imp', 'col'],
+                                  ascending=[True, False]).iloc[-30:]
+    _ = fea_imp.plot(kind='barh', x='col', y='imp', figsize=(20, 10))
+
+
+if __name__ == '__main__':
     main()

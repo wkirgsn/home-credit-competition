@@ -24,15 +24,6 @@ def save_predictions(id, pred):
             print('Predictions of model with uuid {} saved to db.'.format(id))
 
 
-def truncate_actual_target(actual, prediction):
-    # trunc actual if prediction is shorter
-    if prediction.shape[0] != actual.shape[0]:
-        print('trunc actual from {} to {} samples'.format(actual.shape[0],
-                                                          prediction.shape[0]))
-    offset = actual.shape[0] - prediction.shape[0]
-    return actual.iloc[offset:, :]
-
-
 def get_available_gpus():
 
     if cfg.keras_cfg['use_cpu']:
