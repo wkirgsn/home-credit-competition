@@ -103,7 +103,7 @@ def main():
 
     target_train = data_train[lbl_y]
     data_train.drop([lbl_user_id, lbl_y], axis=1, inplace=True)
-    data_test.drop([lbl_user_id], axis=1, inplace=True)
+    data_test_user_id_col = data_test.pop(lbl_user_id)
 
     cat_features = [f for f in data_train.columns if data_train[f].dtype == 'object']
     def column_index(df, query_cols):
@@ -138,8 +138,9 @@ def main():
 
     print('AUC:', roc_auc_score(y_valid, model.predict_proba(X_valid)[:,1]))
     y_preds = model.predict_proba(data_test)[:, 1]
-    data_test[lbl_y] = y_preds
-    subm = data_test.loc[:, [lbl_user_id, lbl_y]]
+    subm = pd.DataFrame({lbl_user_id: data_test_user_id_col,
+                         lbl_y: y_preds})
+
     subm.to_csv('data/out/submission.csv', index=False)
 
 
