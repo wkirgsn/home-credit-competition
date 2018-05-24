@@ -101,28 +101,23 @@ def main():
     data_test = \
         data_test.merge(previous_app_mean_per_id, how='left', on=lbl_user_id)
 
-    target_train = data_train[lbl_y]
+    data_train_y = data_train[lbl_y]
     data_train.drop([lbl_user_id, lbl_y], axis=1, inplace=True)
     data_test_user_id_col = data_test.pop(lbl_user_id)
 
     cat_features = [f for f in data_train.columns if data_train[f].dtype == 'object']
-    def column_index(df, query_cols):
-        cols = df.columns.values
-        sidx = np.argsort(cols)
-        return sidx[np.searchsorted(cols, query_cols, sorter=sidx)]
-    cat_features_inds = column_index(data_train, cat_features)
     print("Cat features are: %s" % [f for f in cat_features])
-    print(cat_features_inds)
 
     for col in cat_features:
         data_train[col] = le.fit_transform(data_train[col].astype(str))
         data_test[col] = le.fit_transform(data_test[col].astype(str))
 
+    # NA value handling
     data_train.fillna(-1, inplace=True)
     data_test.fillna(-1, inplace=True)
 
     X_train, X_valid, y_train, y_valid = train_test_split(data_train,
-                                                          target_train,
+                                                          data_train_y,
                                                           test_size=0.1,
                                                           random_state=SEED)
     print(X_train.shape)
