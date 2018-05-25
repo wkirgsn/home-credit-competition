@@ -3,7 +3,7 @@ import pandas as pd
 import warnings
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_auc_score
 import lightgbm
 
@@ -16,6 +16,7 @@ https://www.kaggle.com/ogrellier/good-fun-with-ligthgbm/code
 """
 warnings.filterwarnings("ignore")
 SEED = 2018
+N_FOLDS = 5
 np.random.seed(SEED)
 
 lbl_user_id = 'SK_ID_CURR'
@@ -63,7 +64,6 @@ def main():
     credit_card = credit_card.merge(nunique_status, how='left', on=lbl_user_id)
     credit_card.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
 
-    # todo: nunique with nans- bug still applicable here?
     bureau_cat_features = [f for f in bureau.columns if bureau[f].dtype == 'object']
     for f in bureau_cat_features:
         bureau[f] = le.fit_transform(bureau[f].astype(str))
@@ -130,23 +130,22 @@ def main():
     data_train.fillna(-1, inplace=True)
     data_test.fillna(-1, inplace=True)
 
-    X_train, X_valid, y_train, y_valid = train_test_split(data_train,
-                                                          data_train_y,
-                                                          test_size=0.1,
-                                                          random_state=SEED)
-    print(X_train.shape)
-    print(X_valid.shape)
+    skfold = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
+    y_preds = 0
+    for i, (tr_idcs, va_idcs) in enumerate(skfold.split(data_train,
+                                                        data_train_y)):
+        x_tr, x_val = data_train.iloc[tr_idcs, :], data_train.iloc[va_idcs, :]
+        y_tr, y_val = data_train_y.iloc[tr_idcs], data_train_y[va_idcs]
 
-    print("\nSetup LGBM...")
-    model = lightgbm.LGBMClassifier(**cfg.lgbm_cfg['params'])
+        print("\nStart LGBM for fold {}".format(i))
+        model = lightgbm.LGBMClassifier(**cfg.lgbm_cfg['params'])
 
-    model.fit(X_train, y_train, eval_set=(X_valid, y_valid),
-              verbose=100, eval_metric='auc', early_stopping_rounds=150)
+        model.fit(x_tr, y_tr, eval_set=(x_val, y_val),
+                  verbose=100, eval_metric='auc', early_stopping_rounds=150)
 
-    # plot_feat_importances(model, list(data_train.columns))
+        print('AUC:', roc_auc_score(y_val, model.predict_proba(x_val)[:, 1]))
+        y_preds = model.predict_proba(data_test)[:, 1] / N_FOLDS
 
-    print('AUC:', roc_auc_score(y_valid, model.predict_proba(X_valid)[:,1]))
-    y_preds = model.predict_proba(data_test)[:, 1]
     subm = pd.DataFrame({lbl_user_id: data_test_user_id_col,
                          lbl_y: y_preds})
 
