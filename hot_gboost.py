@@ -41,35 +41,49 @@ def main():
 
     print("Converting...")
     le = LabelEncoder()
-    POS_CASH['NAME_CONTRACT_STATUS'] = \
-        le.fit_transform(POS_CASH['NAME_CONTRACT_STATUS'].astype(str))
+    cat_feat = 'NAME_CONTRACT_STATUS'
+    POS_CASH[cat_feat] = \
+        le.fit_transform(POS_CASH[cat_feat].astype(str))
     nunique_status = \
-        POS_CASH[[lbl_user_id, 'NAME_CONTRACT_STATUS']].groupby(lbl_user_id).nunique()
-    POS_CASH['NUNIQUE_STATUS'] = \
-        nunique_status['NAME_CONTRACT_STATUS']
-    POS_CASH.drop(['SK_ID_PREV', 'NAME_CONTRACT_STATUS'], axis=1, inplace=True)
+        POS_CASH[[lbl_user_id, cat_feat]].groupby(lbl_user_id)\
+            .nunique()[[cat_feat]]\
+            .rename(columns={cat_feat: 'NUNIQUE_STATUS_POS_CASH'})
 
-    credit_card['NAME_CONTRACT_STATUS'] = \
-        le.fit_transform(credit_card['NAME_CONTRACT_STATUS'].astype(str))
+    nunique_status.reset_index(inplace=True)
+    POS_CASH = POS_CASH.merge(nunique_status, how='left', on=lbl_user_id)
+    POS_CASH.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
+
+    credit_card[cat_feat] = \
+        le.fit_transform(credit_card[cat_feat].astype(str))
     nunique_status = \
-        credit_card[[lbl_user_id, 'NAME_CONTRACT_STATUS']]\
-            .groupby(lbl_user_id).nunique()
-    credit_card['NUNIQUE_STATUS'] = nunique_status['NAME_CONTRACT_STATUS']
-    credit_card.drop(['SK_ID_PREV', 'NAME_CONTRACT_STATUS'], axis=1, inplace=True)
+        credit_card[[lbl_user_id, cat_feat]]\
+            .groupby(lbl_user_id).nunique()[[cat_feat]]\
+            .rename(columns={cat_feat: 'NUNIQUE_STATUS_CREDIT_CARD'})
+    nunique_status.reset_index(inplace=True)
+    credit_card = credit_card.merge(nunique_status, how='left', on=lbl_user_id)
+    credit_card.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
 
+    # todo: nunique with nans- bug still applicable here?
     bureau_cat_features = [f for f in bureau.columns if bureau[f].dtype == 'object']
     for f in bureau_cat_features:
         bureau[f] = le.fit_transform(bureau[f].astype(str))
-        nunique = bureau[[lbl_user_id, f]].groupby(lbl_user_id).nunique()
-        bureau['NUNIQUE_'+f] = nunique[f]
-        bureau.drop([f], axis=1, inplace=True)
+        nunique = bureau[[lbl_user_id, f]].groupby(lbl_user_id)\
+            .nunique()[[f]]\
+            .rename(columns={f: 'NUNIQUE_'+f})
+        nunique.reset_index(inplace=True)
+        bureau = bureau.merge(nunique, how='left', on=lbl_user_id)
+        bureau.drop([f], axis=1, inplace=True)  # todo: why is this dropped?
     bureau.drop(['SK_ID_BUREAU'], axis=1, inplace=True)
 
-    previous_app_cat_features = [f for f in previous_app.columns if previous_app[f].dtype == 'object']
+    previous_app_cat_features = [f for f in previous_app.columns if
+                                 previous_app[f].dtype == 'object']
     for f in previous_app_cat_features:
         previous_app[f] = le.fit_transform(previous_app[f].astype(str))
-        nunique = previous_app[[lbl_user_id, f]].groupby(lbl_user_id).nunique()
-        previous_app['NUNIQUE_'+f] = nunique[f]
+        nunique = previous_app[[lbl_user_id, f]].groupby(lbl_user_id)\
+            .nunique()[[f]]\
+            .rename(columns={f: 'NUNIQUE_'+f})
+        nunique.reset_index(inplace=True)
+        previous_app = previous_app.merge(nunique, how='left', on=lbl_user_id)
         previous_app.drop([f], axis=1, inplace=True)
     previous_app.drop(['SK_ID_PREV'], axis=1, inplace=True)
 
