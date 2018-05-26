@@ -16,11 +16,11 @@ https://www.kaggle.com/ogrellier/good-fun-with-ligthgbm/code
 """
 warnings.filterwarnings("ignore")
 SEED = 2018
-N_FOLDS = 5
+N_FOLDS = 10
 np.random.seed(SEED)
 
-lbl_user_id = 'SK_ID_CURR'
-lbl_y = 'TARGET'
+col_user_id = 'SK_ID_CURR'
+col_y = 'TARGET'
 
 
 def main():
@@ -46,32 +46,32 @@ def main():
     POS_CASH[cat_feat] = \
         le.fit_transform(POS_CASH[cat_feat].astype(str))
     nunique_status = \
-        POS_CASH[[lbl_user_id, cat_feat]].groupby(lbl_user_id)\
+        POS_CASH[[col_user_id, cat_feat]].groupby(col_user_id)\
             .nunique()[[cat_feat]]\
             .rename(columns={cat_feat: 'NUNIQUE_STATUS_POS_CASH'})
 
     nunique_status.reset_index(inplace=True)
-    POS_CASH = POS_CASH.merge(nunique_status, how='left', on=lbl_user_id)
+    POS_CASH = POS_CASH.merge(nunique_status, how='left', on=col_user_id)
     POS_CASH.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
 
     credit_card[cat_feat] = \
         le.fit_transform(credit_card[cat_feat].astype(str))
     nunique_status = \
-        credit_card[[lbl_user_id, cat_feat]]\
-            .groupby(lbl_user_id).nunique()[[cat_feat]]\
+        credit_card[[col_user_id, cat_feat]]\
+            .groupby(col_user_id).nunique()[[cat_feat]]\
             .rename(columns={cat_feat: 'NUNIQUE_STATUS_CREDIT_CARD'})
     nunique_status.reset_index(inplace=True)
-    credit_card = credit_card.merge(nunique_status, how='left', on=lbl_user_id)
+    credit_card = credit_card.merge(nunique_status, how='left', on=col_user_id)
     credit_card.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
 
     bureau_cat_features = [f for f in bureau.columns if bureau[f].dtype == 'object']
     for f in bureau_cat_features:
         bureau[f] = le.fit_transform(bureau[f].astype(str))
-        nunique = bureau[[lbl_user_id, f]].groupby(lbl_user_id)\
+        nunique = bureau[[col_user_id, f]].groupby(col_user_id)\
             .nunique()[[f]]\
             .rename(columns={f: 'NUNIQUE_'+f})
         nunique.reset_index(inplace=True)
-        bureau = bureau.merge(nunique, how='left', on=lbl_user_id)
+        bureau = bureau.merge(nunique, how='left', on=col_user_id)
         bureau.drop([f], axis=1, inplace=True)  # todo: why is this dropped?
     bureau.drop(['SK_ID_BUREAU'], axis=1, inplace=True)
 
@@ -79,45 +79,45 @@ def main():
                                  previous_app[f].dtype == 'object']
     for f in previous_app_cat_features:
         previous_app[f] = le.fit_transform(previous_app[f].astype(str))
-        nunique = previous_app[[lbl_user_id, f]].groupby(lbl_user_id)\
+        nunique = previous_app[[col_user_id, f]].groupby(col_user_id)\
             .nunique()[[f]]\
             .rename(columns={f: 'NUNIQUE_'+f})
         nunique.reset_index(inplace=True)
-        previous_app = previous_app.merge(nunique, how='left', on=lbl_user_id)
+        previous_app = previous_app.merge(nunique, how='left', on=col_user_id)
         previous_app.drop([f], axis=1, inplace=True)
     previous_app.drop(['SK_ID_PREV'], axis=1, inplace=True)
 
     print("Merging...")
     # calc means of all features per user id
-    pos_cash_mean_per_id = POS_CASH.groupby(lbl_user_id).mean().reset_index()
-    credit_card_mean_per_id = credit_card.groupby(lbl_user_id).mean().reset_index()
-    bureau_mean_per_id = bureau.groupby(lbl_user_id).mean().reset_index()
-    previous_app_mean_per_id = previous_app.groupby(lbl_user_id).mean().reset_index()
+    pos_cash_mean_per_id = POS_CASH.groupby(col_user_id).mean().reset_index()
+    credit_card_mean_per_id = credit_card.groupby(col_user_id).mean().reset_index()
+    bureau_mean_per_id = bureau.groupby(col_user_id).mean().reset_index()
+    previous_app_mean_per_id = previous_app.groupby(col_user_id).mean().reset_index()
 
     # merge to dataset
     data_train = \
-        application_train.merge(pos_cash_mean_per_id, how='left', on=lbl_user_id)
+        application_train.merge(pos_cash_mean_per_id, how='left', on=col_user_id)
     data_test = \
-        application_test.merge(pos_cash_mean_per_id, how='left', on=lbl_user_id)
+        application_test.merge(pos_cash_mean_per_id, how='left', on=col_user_id)
 
     data_train = \
-        data_train.merge(credit_card_mean_per_id, how='left', on=lbl_user_id)
+        data_train.merge(credit_card_mean_per_id, how='left', on=col_user_id)
     data_test = \
-        data_test.merge(credit_card_mean_per_id, how='left', on=lbl_user_id)
+        data_test.merge(credit_card_mean_per_id, how='left', on=col_user_id)
 
     data_train = \
-        data_train.merge(bureau_mean_per_id, how='left', on=lbl_user_id)
+        data_train.merge(bureau_mean_per_id, how='left', on=col_user_id)
     data_test = \
-        data_test.merge(bureau_mean_per_id, how='left', on=lbl_user_id)
+        data_test.merge(bureau_mean_per_id, how='left', on=col_user_id)
 
     data_train = \
-        data_train.merge(previous_app_mean_per_id, how='left', on=lbl_user_id)
+        data_train.merge(previous_app_mean_per_id, how='left', on=col_user_id)
     data_test = \
-        data_test.merge(previous_app_mean_per_id, how='left', on=lbl_user_id)
+        data_test.merge(previous_app_mean_per_id, how='left', on=col_user_id)
 
-    data_train_y = data_train[lbl_y]
-    data_train.drop([lbl_user_id, lbl_y], axis=1, inplace=True)
-    data_test_user_id_col = data_test.pop(lbl_user_id)
+    data_train_y = data_train[col_y]
+    data_train.drop([col_user_id, col_y], axis=1, inplace=True)
+    data_test_user_id_col = data_test.pop(col_user_id)
 
     cat_features = [f for f in data_train.columns if data_train[f].dtype == 'object']
     print("Cat features are: %s" % [f for f in cat_features])
@@ -146,8 +146,8 @@ def main():
         print('AUC:', roc_auc_score(y_val, model.predict_proba(x_val)[:, 1]))
         y_preds = model.predict_proba(data_test)[:, 1] / N_FOLDS
 
-    subm = pd.DataFrame({lbl_user_id: data_test_user_id_col,
-                         lbl_y: y_preds})
+    subm = pd.DataFrame({col_user_id: data_test_user_id_col,
+                         col_y: y_preds})
 
     subm.to_csv('data/out/submission.csv', index=False)
 

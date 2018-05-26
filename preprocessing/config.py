@@ -1,31 +1,11 @@
-import numpy as np
-from hyperopt import hp
+"""HOME CREDIT COMPETITION 2018"""
 
-debug_cfg = {'DEBUG': True,
+debug_cfg = {'DEBUG': False,
              'choose_debug_on_gpu_availability': False,
              'n_debug': 1000,  # first n timestamps to use if debug
              }
 
 data_cfg = {
-    'Input_param_names': [#'ambient',
-                          #'coolant',
-                          'u_d',
-                          'u_q',
-                          'motor_speed',
-                          'torque',
-                          'i_d',
-                          'i_q'
-                           ],
-    'Target_param_names': ['TARGET'],
-    'lookback': 1,
-    'valset': ['31', ],
-    'testset': ['20', ],
-    'loadsets': ['4', '6',
-                 '10', '11',
-                 '20', '27',
-                 '29', '30',
-                 '31', '32', '36'],
-    # paths
     'file_path': "data/input/measures.csv",
     'db_path': 'data/results.db',
     'save_predictions': True,
@@ -37,6 +17,7 @@ plot_cfg = {'do_plot': True, }
 keras_cfg = {
     'early_stop_patience': 30,
     'use_cpu': False,
+
     'params': {
         'batch_size': 64,
         'n_layers': 1,
@@ -76,32 +57,15 @@ lgbm_cfg = {
                 'verbose':-1,
                 'random_state': 10
        },
-    'params_found_by_skopt': {'n_estimators': 10000,
-                              'scale_pos_weight': 10000.0,
-                              'min_child_weight': 2.2756358867092463,
-                              'num_leaves': 232,
-                              'random_state': 2000,
-                              'colsample_bytree': 0.4947227023598322,
-                              'max_depth': 29}
-
-    ,
-    'hp_tuning': {'num_leaves': list(range(2, 256, 2)),
-                  'max_depth': list(range(2, 64)),
-                  'scale_pos_weight': list(range(1, 10000)),
-                  'colsample_bytree': list(np.linspace(0.3, 1.0)),
-                  'min_child_weight': list(np.linspace(0.01, 1000, 100)),
-                  'random_state': list(range(2000, 3000, 20))  # arbitrary
-                  },
-    'hp_hyperopt_space':
-              {'num_leaves': hp.quniform('num_leaves', 8, 128, 2),
-               'max_depth': hp.uniform('max_depth', 2, 64),
-               'scale_pos_weight': hp.uniform('scale_pos_weight', 1, 10**4),
-               'colsample_bytree': hp.uniform('colsample_bytree', 0.3, 1.0),
-               'min_child_weight': hp.quniform('min_child_weight', 0.01,
-                                              1000, 100),
-               'random_state': hp.quniform('random_state', 2000, 3000, 100),
-               },
-    'hp_skopt_space': {'num_leaves': (2, 256),
+    'params_found_by_skopt': {'n_estimators': None,
+                              'scale_pos_weight': None,
+                              'min_child_weight': None,
+                              'num_leaves': None,
+                              'random_state': None,
+                              'colsample_bytree': None,
+                              'max_depth': None,
+                              },
+    'hp_skopt_simple_space': {'num_leaves': (2, 256),
                       'max_depth': (2, 64),
                       'scale_pos_weight': (1, 10000, 'uniform'),
                       'colsample_bytree': (0.3, 1.0, 'log-uniform'),
