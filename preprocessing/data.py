@@ -6,7 +6,7 @@ import time
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler, StandardScaler,\
-    PolynomialFeatures
+    PolynomialFeatures, LabelEncoder
 from sklearn.pipeline import FeatureUnion, Pipeline, make_pipeline, make_union
 from sklearn.base import BaseEstimator, TransformerMixin
 
@@ -16,6 +16,9 @@ import preprocessing.config as cfg
 CAUTION!
 THIS FILE IS UNDER HEAVY CONSTRUCTION!
 """
+
+col_user_id = 'SK_ID_CURR'
+col_y = 'TARGET'
 
 
 def measure_time(func):
@@ -56,27 +59,28 @@ class ColumnManager:
 
 class DataManager:
 
-    def __init__(self, use_cv=True):
+    @measure_time
+    def __init__(self):
+        print('load data...')
+        n_rows_to_read = \
+            cfg.debug_cfg['n_debug'] if cfg.debug_cfg['DEBUG'] else None
+
         # original data
-        train = pd.read_csv("../data/raw/application_train.csv")
-        test = pd.read_csv("../data/raw/application_test.csv")
-        bureau = pd.read_csv("../data/raw/bureau.csv")
-        previous_app = pd.read_csv("../data/raw/previous_application.csv")
-        bureau_balance = pd.read_csv("../data/raw/bureau_balance.csv")
-        credit_cb = pd.read_csv("../data/raw/credit_card_balance.csv")
-        installments_pay = pd.read_csv("../data/raw/installments_payments.csv")
-        POS_CASH_b = pd.read_csv("../data/raw/POS_CASH_balance.csv")
+        self.application_train = pd.read_csv("data/raw/application_train.csv",
+                                        nrows=n_rows_to_read)
+        self.application_test = pd.read_csv("data/raw/application_test.csv",
+                                       nrows=n_rows_to_read)
+        self.POS_CASH = pd.read_csv('data/raw/POS_CASH_balance.csv',
+                               nrows=n_rows_to_read)
+        self.credit_card = pd.read_csv('data/raw/credit_card_balance.csv',
+                                  nrows=n_rows_to_read)
+        self.bureau = pd.read_csv('data/raw/bureau.csv', nrows=n_rows_to_read)
+        self.previous_app = pd.read_csv('data/raw/previous_application.csv',
+                                   nrows=n_rows_to_read)
 
-        # When using CV, do not create a hold out (out-of-fold)
-        self.has_fix_oof = not use_cv
-
-        # column management
-        self.cl = ColumnManager(self.train)
-
-        # build pipeline building blocks
-        self.pipe = self.build_pipeline()
-
+    @measure_time
     def build_pipeline(self):
+        print('build pipeline...')
         featurize_union = FeatureUnion([('simple_trans_y',
                                          SimpleTransformer(np.sqrt,
                                                            np.square,
@@ -131,19 +135,105 @@ class DataManager:
                 ])
 
     @measure_time
-    def get_featurized_sets(self):
-        print('build dataset..')
-        tra_df = self.tra_df
-        tst_df = self.tst_df
-        val_df = self.val_df
+    def factorize_categoricals(self):
+        print('factorize categoricals..')
+        le = LabelEncoder()
+        cat_feat = 'NAME_CONTRACT_STATUS'
+        self.POS_CASH[cat_feat] = \
+            le.fit_transform(self.POS_CASH[cat_feat].astype(str))
+        nunique_status = \
+            self.POS_CASH[[col_user_id, cat_feat]].groupby(col_user_id) \
+                .nunique()[[cat_feat]] \
+                .rename(columns={cat_feat: 'NUNIQUE_STATUS_POS_CASH'})
 
-        tra_df = self.pipe.fit_transform(tra_df)
-        tst_df = self.pipe.transform(tst_df)
-        if val_df is not None:
-            val_df = self.pipe.transform(val_df)
+        nunique_status.reset_index(inplace=True)
+        self.POS_CASH = self.POS_CASH.merge(nunique_status, how='left',
+                                      on=col_user_id)
+        self.POS_CASH.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
 
-        self.cl.update(tra_df)
-        return tra_df, val_df, tst_df
+        self.credit_card[cat_feat] = \
+            le.fit_transform(self.credit_card[cat_feat].astype(str))
+        nunique_status = \
+            self.credit_card[[col_user_id, cat_feat]] \
+                .groupby(col_user_id).nunique()[[cat_feat]] \
+                .rename(columns={cat_feat: 'NUNIQUE_STATUS_CREDIT_CARD'})
+        nunique_status.reset_index(inplace=True)
+        self.credit_card = self.credit_card.merge(nunique_status, how='left',
+                                        on=col_user_id)
+        self.credit_card.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
+
+        bureau_cat_features = [f for f in self.bureau.columns if
+                               self.bureau[f].dtype == 'object']
+        for f in bureau_cat_features:
+            self.bureau[f] = le.fit_transform(self.bureau[f].astype(str))
+            nunique = self.bureau[[col_user_id, f]].groupby(col_user_id) \
+                .nunique()[[f]] \
+                .rename(columns={f: 'NUNIQUE_' + f})
+            nunique.reset_index(inplace=True)
+            self.bureau = self.bureau.merge(nunique, how='left', on=col_user_id)
+            self.bureau.drop([f], axis=1, inplace=True)  # todo: why is this dropped?
+        self.bureau.drop(['SK_ID_BUREAU'], axis=1, inplace=True)
+
+        previous_app_cat_features = [f for f in self.previous_app.columns if
+                                     self.previous_app[f].dtype == 'object']
+        for f in previous_app_cat_features:
+            self.previous_app[f] = le.fit_transform(self.previous_app[f].astype(str))
+            nunique = self.previous_app[[col_user_id, f]].groupby(col_user_id) \
+                .nunique()[[f]] \
+                .rename(columns={f: 'NUNIQUE_' + f})
+            nunique.reset_index(inplace=True)
+            self.previous_app = self.previous_app.merge(nunique, how='left',
+                                              on=col_user_id)
+            self.previous_app.drop([f], axis=1, inplace=True)
+        self.previous_app.drop(['SK_ID_PREV'], axis=1, inplace=True)
+
+        main_set_cat_features = [f for f in self.application_train.columns if
+                                 self.application_train[f].dtype == 'object']
+        for col in main_set_cat_features:
+            self.application_train[col], _ = \
+                self.application_train[col].astype(str).factorize()
+            self.application_test[col], _ = \
+                self.application_test[col].astype(str).factorize()
+
+    @measure_time
+    def merge_tables(self):
+        print("Merging tables...")
+        # calc means of all features per user id
+        pos_cash_mean_per_id = self.POS_CASH.groupby(
+            col_user_id).mean().reset_index()
+        credit_card_mean_per_id = self.credit_card.groupby(
+            col_user_id).mean().reset_index()
+        bureau_mean_per_id = self.bureau.groupby(col_user_id).mean().reset_index()
+        previous_app_mean_per_id = self.previous_app.groupby(
+            col_user_id).mean().reset_index()
+
+        # merge to dataset
+        train_set = \
+            self.application_train.merge(pos_cash_mean_per_id, how='left',
+                                    on=col_user_id)
+        test_set = \
+            self.application_test.merge(pos_cash_mean_per_id, how='left',
+                                   on=col_user_id)
+
+        train_set = \
+            train_set.merge(credit_card_mean_per_id, how='left', on=col_user_id)
+        test_set = \
+            test_set.merge(credit_card_mean_per_id, how='left', on=col_user_id)
+
+        train_set = \
+            train_set.merge(bureau_mean_per_id, how='left', on=col_user_id)
+        test_set = \
+            test_set.merge(bureau_mean_per_id, how='left', on=col_user_id)
+
+        train_set = \
+            train_set.merge(previous_app_mean_per_id, how='left', on=col_user_id)
+        test_set = \
+            test_set.merge(previous_app_mean_per_id, how='left', on=col_user_id)
+        return train_set, test_set
+
+    @staticmethod
+    def handle_na(_train, _test):
+        return _train.fillna(-1), _test.fillna(-1)
 
     def inverse_prediction(self, pred):
         pass
