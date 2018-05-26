@@ -12,17 +12,26 @@ from preprocessing.data import DataManager
 """Sources: 
 https://www.kaggle.com/yekenot/catboostarter/code
 https://www.kaggle.com/ogrellier/good-fun-with-ligthgbm/code
+https://www.kaggle.com/pavanraj159/loan-repayers-v-s-loan-defaulters-home-credit
 """
 warnings.filterwarnings("ignore")
 SEED = 2018
-N_FOLDS = 10
+N_FOLDS = 5
 np.random.seed(SEED)
 
 col_user_id = 'SK_ID_CURR'
 col_y = 'TARGET'
 
+# todo: Train different models for those applicants w/ many NANs and those w/out
+# todo: feat idea: Bool -> Applied before 1pm or after
+# todo: feat idea: amt_credit²+amt_annuity² plus threshold bool
+# todo: feat idea: has low-skill occupation y/n
+
 
 def main():
+    debug_mode = cfg.debug_cfg['DEBUG']
+
+    # FEATURE ENGINEERING
 
     dm = DataManager()
     dm.factorize_categoricals()
@@ -43,7 +52,7 @@ def main():
         x_tr, x_val = data_train.iloc[tr_idcs, :], data_train.iloc[va_idcs, :]
         y_tr, y_val = data_train_y.iloc[tr_idcs], data_train_y[va_idcs]
 
-        print("\nStart LGBM for fold {}".format(i))
+        print("\nStart LGBM for fold {}".format(i+1))
         model = lightgbm.LGBMClassifier(**cfg.lgbm_cfg['params'])
 
         model.fit(x_tr, y_tr, eval_set=(x_val, y_val),
@@ -55,7 +64,10 @@ def main():
     subm = pd.DataFrame({col_user_id: data_test_user_id_col,
                          col_y: y_preds})
 
-    subm.to_csv('data/out/submission.csv', index=False)
+    subm_file_name = 'submissions.csv' if not debug_mode else \
+        'submissions_debug.csv'
+
+    subm.to_csv('data/out/{}'.format(subm_file_name), index=False)
     plot_feat_importances(model, data_train.columns)
 
 
@@ -64,7 +76,8 @@ def plot_feat_importances(_mdl, _cols):
                             'col': _cols})
     fea_imp = fea_imp.sort_values(['imp', 'col'],
                                   ascending=[True, False]).iloc[-30:]
-    _ = fea_imp.plot(kind='barh', x='col', y='imp', figsize=(20, 10))
+    plt.figure()
+    fea_imp.plot(kind='barh', x='col', y='imp', figsize=(20, 10))
 
 
 if __name__ == '__main__':
