@@ -6,35 +6,17 @@ import pandas as pd
 import numpy as np
 import lightgbm
 from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV, \
-    cross_val_score
+    StratifiedKFold
 from sklearn.metrics import make_scorer, mean_squared_error
 
 from preprocessing.data import DataManager
 import preprocessing.config as cfg
 
-
-def hyperopt_objective(sampled_params):
-    # todo: Ugly shit
-    param_dict = {'num_leaves': False,
-                  'max_depth': False,
-                  'scale_pos_weight': True,
-                  'colsample_bytree': True,
-                  'min_child_weight': True,
-                  'random_state': False
-                  }
-    converted_params = {}
-    for p_name, p_range in sampled_params.items():
-        if param_dict[p_name]:
-            # True -> real_valued
-            converted_params[p_name] = '{:.3f}'.format(p_range)
-        else:
-            # False -> integer
-            converted_params[p_name] = int(p_range)
-    clf = lightgbm.LGBMRegressor(n_estimators=10, **converted_params)
-    score = cross_val_score(clf, X, Y, scoring=make_scorer(mean_squared_error),
-                            cv=TimeSeriesSplit())
-    print("MSE: {:.3f} params {:}".format(score.mean(), converted_params))
-    return score
+N_SEARCH_ITERATIONS = 2
+SEED = 2018
+N_FOLDS = 5
+col_user_id = 'SK_ID_CURR'
+col_y = 'TARGET'
 
 
 def status_print(optim_result):
@@ -45,14 +27,14 @@ def status_print(optim_result):
 
     # Get current parameters and the best parameters
     best_params = pd.Series(opt_search.best_params_)
-    print('Model #{}\nBest L2: {}\nBest params: {}\n'.format(
+    print('Model #{}\nBest AUC: {}\nBest params: {}\n'.format(
         len(all_models),
         np.round(opt_search.best_score_, 4),
         best_params))
 
     # Save all model results
     clf_name = opt_search.estimator.__class__.__name__
-    all_models.to_csv(clf_name + "_cv_results.csv")
+    all_models.to_csv('data/out/' + clf_name + "_cv_results.csv")
 
 
 if __name__ == '__main__':
@@ -61,34 +43,31 @@ if __name__ == '__main__':
         model_uuid = str(uuid.uuid4())[:6]
         print('model uuid: {}'.format(model_uuid))
 
-    dm = DataManager(cfg.data_cfg['file_path'], create_hold_out=False)
+    dm = DataManager()
+    dm.factorize_categoricals()
+    data_train, data_test = dm.merge_tables()
 
-    # featurize dataset (feature engineering)
-    tra_df, _, tst_df = dm.get_featurized_sets()
+    data_train_y = data_train.pop(col_y)
+    _ = data_train.pop(col_user_id)  # do not predict on user id
+    data_test_user_id_col = data_test.pop(col_user_id)
 
-    if False:
-        # hyperopt
-        print("Start hyperopt")
-        X = tra_df[dm.cl.x_cols]
-        Y = tra_df[dm.cl.y_cols[0]]
-        space = cfg.lgbm_cfg['hp_hyperopt_space']
+    data_train, data_test = dm.handle_na(data_train, data_test)
 
-        best = fmin(fn=hyperopt_objective,
-                    space=space,
-                    algo=tpe.suggest,
-                    max_evals=50)
-        print("Hyperopt estimated optimum {}".format(best))
-    else:
-        # skopt bayes search
+    # MODEL PIPELINE
 
-        model = lightgbm.LGBMRegressor(n_estimators=10000)
-        tscv = TimeSeriesSplit()
+    skfold = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
 
-        hyper_params = cfg.lgbm_cfg['hp_skopt_space']
-        opt_search = \
-            BayesSearchCV(model, n_iter=2, search_spaces=hyper_params,
-                          iid=False, cv=tscv, random_state=2018)
-        opt_search.fit(tra_df[dm.cl.x_cols],
-                       tra_df[dm.cl.y_cols[0]],
-                       callback=status_print)
+    model = lightgbm.LGBMRegressor(n_estimators=10000)
+
+    hyper_params = cfg.lgbm_cfg['hp_skopt_simple_space']
+    opt_search = \
+        BayesSearchCV(model,
+                      n_iter=N_SEARCH_ITERATIONS,
+                      search_spaces=hyper_params,
+                      iid=True,
+                      cv=skfold,
+                      random_state=SEED)
+    opt_search.fit(data_train, data_train_y, callback=status_print)
+
+    status_print(None)
 

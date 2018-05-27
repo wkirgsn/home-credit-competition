@@ -1,6 +1,6 @@
 """HOME CREDIT COMPETITION 2018"""
 
-debug_cfg = {'DEBUG': False,
+debug_cfg = {'DEBUG': True,
              'choose_debug_on_gpu_availability': False,
              'n_debug': 1000,  # first n timestamps to use if debug
              }
