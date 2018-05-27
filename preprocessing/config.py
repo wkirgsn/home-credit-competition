@@ -66,6 +66,7 @@ lgbm_cfg = {
                               'max_depth': None,
                               },
     'hp_skopt_space': {
+        'n_estimators': (1000, 10000),
         'learning_rate': (0.001, 1.0, 'log-uniform'),
         'num_leaves': (2, 512),
         'max_depth': (2, 64),

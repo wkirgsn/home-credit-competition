@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
     skfold = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
 
-    model = lightgbm.LGBMClassifier(n_estimators=10000)
+    model = lightgbm.LGBMClassifier()
 
     hyper_params = cfg.lgbm_cfg['hp_skopt_space']
     opt_search = \
@@ -67,7 +67,7 @@ if __name__ == '__main__':
                       iid=True,
                       cv=skfold,
                       random_state=SEED,
-                      scoring=make_scorer(roc_auc_score, needs_proba=True),
+                      scoring='roc_auc',
                       fit_params={'eval_metric': 'auc',
                                   'verbose': 100})
     opt_search.fit(data_train, data_train_y, callback=status_print)
