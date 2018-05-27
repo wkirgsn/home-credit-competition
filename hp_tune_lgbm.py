@@ -7,7 +7,7 @@ import numpy as np
 import lightgbm
 from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV, \
     StratifiedKFold
-from sklearn.metrics import make_scorer, mean_squared_error
+from sklearn.metrics import make_scorer, roc_auc_score
 
 from preprocessing.data import DataManager
 import preprocessing.config as cfg
@@ -57,16 +57,19 @@ if __name__ == '__main__':
 
     skfold = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
 
-    model = lightgbm.LGBMRegressor(n_estimators=10000)
+    model = lightgbm.LGBMClassifier(n_estimators=10000)
 
-    hyper_params = cfg.lgbm_cfg['hp_skopt_simple_space']
+    hyper_params = cfg.lgbm_cfg['hp_skopt_space']
     opt_search = \
         BayesSearchCV(model,
                       n_iter=N_SEARCH_ITERATIONS,
                       search_spaces=hyper_params,
                       iid=True,
                       cv=skfold,
-                      random_state=SEED)
+                      random_state=SEED,
+                      scoring=make_scorer(roc_auc_score, needs_proba=True),
+                      fit_params={'eval_metric': 'auc',
+                                  'verbose': 100})
     opt_search.fit(data_train, data_train_y, callback=status_print)
 
     status_print(None)

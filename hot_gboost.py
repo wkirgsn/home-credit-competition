@@ -47,6 +47,7 @@ def main():
 
     skfold = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
     y_preds = 0
+    mean_score = 0
     for i, (tr_idcs, va_idcs) in enumerate(skfold.split(data_train,
                                                         data_train_y)):
         x_tr, x_val = data_train.iloc[tr_idcs, :], data_train.iloc[va_idcs, :]
@@ -57,10 +58,12 @@ def main():
 
         model.fit(x_tr, y_tr, eval_set=(x_val, y_val),
                   verbose=100, eval_metric='auc', early_stopping_rounds=150)
-
-        print('AUC:', roc_auc_score(y_val, model.predict_proba(x_val)[:, 1]))
+        score = roc_auc_score(y_val, model.predict_proba(x_val)[:, 1])
+        print('AUC:', score)
+        mean_score += score / N_FOLDS
         y_preds = model.predict_proba(data_test)[:, 1] / N_FOLDS
-
+        # todo: Take the harmonic mean of the predictions' rank instead of avg.
+    print('\nMean AUC:', mean_score)
     subm = pd.DataFrame({col_user_id: data_test_user_id_col,
                          col_y: y_preds})
 

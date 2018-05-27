@@ -65,29 +65,21 @@ lgbm_cfg = {
                               'colsample_bytree': None,
                               'max_depth': None,
                               },
-    'hp_skopt_simple_space': {'num_leaves': (2, 256),
-                      'max_depth': (2, 64),
-                      'scale_pos_weight': (1, 10000, 'uniform'),
-                      'colsample_bytree': (0.3, 1.0, 'log-uniform'),
-                      'min_child_weight': (0.01, 1000, 'log-uniform'),
-                      'random_state': (2000, 3000)  # arbitrary
-                      },
-    'hp_skopt_broad_space': {
-        'learning_rate': (0.01, 1.0, 'log-uniform'),
-        'num_leaves': (1, 100),
-        'max_depth': (0, 50),
+    'hp_skopt_space': {
+        'learning_rate': (0.001, 1.0, 'log-uniform'),
+        'num_leaves': (2, 512),
+        'max_depth': (2, 64),
+        'min_child_weight': (0.01, 1000, 'log-uniform'),
         'min_child_samples': (0, 50),
-        'max_bin': (100, 1000),
         'subsample': (0.01, 1.0, 'uniform'),
         'subsample_freq': (0, 10),
         'colsample_bytree': (0.01, 1.0, 'uniform'),
-        'min_child_weight': (0, 10),
-        'subsample_for_bin': (100000, 500000),
+        'random_state': (2000, 3000),  # arbitrary
         'reg_lambda': (1e-9, 1000, 'log-uniform'),
         'reg_alpha': (1e-9, 1.0, 'log-uniform'),
-        'scale_pos_weight': (1e-6, 500, 'log-uniform'),
-        'n_estimators': (50, 100),
-    }
+        'scale_pos_weight': (1e-6, 10000, 'log-uniform'),
+        },
+
 }
 
 
