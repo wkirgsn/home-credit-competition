@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
     skfold = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
 
-    model = lightgbm.LGBMClassifier()
+    model = lightgbm.LGBMClassifier(verbose=-1)
 
     hyper_params = cfg.lgbm_cfg['hp_skopt_space']
     opt_search = \
