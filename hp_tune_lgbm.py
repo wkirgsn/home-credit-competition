@@ -12,7 +12,7 @@ from sklearn.metrics import make_scorer, roc_auc_score
 from preprocessing.data import DataManager
 import preprocessing.config as cfg
 
-N_SEARCH_ITERATIONS = 2
+N_SEARCH_ITERATIONS = cfg.skopt_cfg['n_iter']
 SEED = 2018
 N_FOLDS = 5
 col_user_id = 'SK_ID_CURR'

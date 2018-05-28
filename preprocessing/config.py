@@ -90,5 +90,7 @@ lgbm_cfg = {
 
 }
 
-
+skopt_cfg = {
+    'n_iter': 50
+}
 
