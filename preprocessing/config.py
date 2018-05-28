@@ -73,10 +73,10 @@ lgbm_cfg = {
          'reg_alpha': 0.6883901455445399
     },
     'hp_skopt_space': {
-        'n_estimators': (1000, 10000),
-        'learning_rate': (0.001, 1.0, 'log-uniform'),
-        'num_leaves': (2, 256),
-        'max_depth': (2, 32),
+        'n_estimators': (1000, 8000),
+        'learning_rate': (0.01, 1.0, 'log-uniform'),
+        'num_leaves': (2, 64),
+        'max_depth': (2, 16),
         'min_child_weight': (0.01, 100, 'log-uniform'),
         'min_child_samples': (1, 50),
         'subsample': (0.01, 1.0, 'uniform'),
@@ -91,6 +91,6 @@ lgbm_cfg = {
 }
 
 skopt_cfg = {
-    'n_iter': 50
+    'n_iter': 100
 }
 

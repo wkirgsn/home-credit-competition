@@ -13,10 +13,6 @@ from sklearn.base import BaseEstimator, TransformerMixin
 
 import preprocessing.config as cfg
 
-"""
-CAUTION!
-THIS FILE IS UNDER HEAVY CONSTRUCTION!
-"""
 
 col_user_id = 'SK_ID_CURR'
 col_y = 'TARGET'
@@ -78,7 +74,6 @@ class DataManager:
         self.bureau = pd.read_csv('data/raw/bureau.csv', nrows=n_rows_to_read)
         self.previous_app = pd.read_csv('data/raw/previous_application.csv',
                                    nrows=n_rows_to_read)
-
 
     @measure_time
     def factorize_categoricals(self):
