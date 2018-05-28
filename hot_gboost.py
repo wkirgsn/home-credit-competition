@@ -54,7 +54,7 @@ def main():
         y_tr, y_val = data_train_y.iloc[tr_idcs], data_train_y[va_idcs]
 
         print("\nStart LGBM for fold {}".format(i+1))
-        model = lightgbm.LGBMClassifier(**cfg.lgbm_cfg['params'])
+        model = lightgbm.LGBMClassifier(**cfg.lgbm_cfg['params_found_by_skopt'])
 
         model.fit(x_tr, y_tr, eval_set=(x_val, y_val),
                   verbose=100, eval_metric='auc', early_stopping_rounds=150)

@@ -1,6 +1,6 @@
 """HOME CREDIT COMPETITION 2018"""
 
-debug_cfg = {'DEBUG': True,
+debug_cfg = {'DEBUG': False,
              'choose_debug_on_gpu_availability': False,
              'n_debug': 1000,  # first n timestamps to use if debug
              }
@@ -57,14 +57,21 @@ lgbm_cfg = {
                 'verbose':-1,
                 'random_state': 10
        },
-    'params_found_by_skopt': {'n_estimators': None,
-                              'scale_pos_weight': None,
-                              'min_child_weight': None,
-                              'num_leaves': None,
-                              'random_state': None,
-                              'colsample_bytree': None,
-                              'max_depth': None,
-                              },
+    'params_found_by_skopt': {
+        'learning_rate': 0.002142669368075299,
+         'max_depth': 31,
+         'colsample_bytree': 0.7832942012829991,
+         'n_estimators': 9183,
+         'num_leaves': 102,
+         'subsample': 0.7162620598746688,
+         'min_child_samples': 50,
+         'random_state': 2327,
+         'min_child_weight': 100.0,
+         'scale_pos_weight': 93.79500184390646,
+         'reg_lambda': 1000.0,
+         'subsample_freq': 10,
+         'reg_alpha': 0.6883901455445399
+    },
     'hp_skopt_space': {
         'n_estimators': (1000, 10000),
         'learning_rate': (0.001, 1.0, 'log-uniform'),
