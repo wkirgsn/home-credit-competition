@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.stats as ss
 import pandas as pd
 import warnings
 import matplotlib.pyplot as plt
@@ -46,8 +47,8 @@ def main():
     # MODEL PIPELINE
 
     skfold = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
-    y_preds = 0
-    mean_score = 0
+    y_preds = []
+    val_scores = []
     for i, (tr_idcs, va_idcs) in enumerate(skfold.split(data_train,
                                                         data_train_y)):
         x_tr, x_val = data_train.iloc[tr_idcs, :], data_train.iloc[va_idcs, :]
@@ -60,11 +61,13 @@ def main():
                   verbose=100, eval_metric='auc', early_stopping_rounds=150)
         score = roc_auc_score(y_val, model.predict_proba(x_val)[:, 1])
         print('AUC:', score)
-        mean_score += score / N_FOLDS
-        y_preds += model.predict_proba(data_test)[:, 1] / N_FOLDS
-        # mean of aucs provides Mean AUC: 0.778863
-        # todo: Take the harmonic mean of the predictions' rank instead of avg.
-    print('\nMean AUC:', mean_score)
+        val_scores.append(score)
+        y_preds.append(model.predict_proba(data_test)[:, 1])
+
+    print('\nMean AUC on valset: {}'.format(np.mean(val_scores)))
+    y_preds = ss.hmean([ss.rankdata(x) for x in y_preds])  # harm. mean of rank
+    # y_preds = np.mean(y_preds)  # mean of predictions
+
     subm = pd.DataFrame({col_user_id: data_test_user_id_col,
                          col_y: y_preds})
 
@@ -72,7 +75,7 @@ def main():
         'submissions_debug.csv'
 
     subm.to_csv('data/out/{}'.format(subm_file_name), index=False)
-    plot_feat_importances(model, data_train.columns)
+    # plot_feat_importances(model, data_train.columns)
 
 
 def plot_feat_importances(_mdl, _cols):
