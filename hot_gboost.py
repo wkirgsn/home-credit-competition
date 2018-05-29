@@ -61,7 +61,8 @@ def main():
         score = roc_auc_score(y_val, model.predict_proba(x_val)[:, 1])
         print('AUC:', score)
         mean_score += score / N_FOLDS
-        y_preds = model.predict_proba(data_test)[:, 1] / N_FOLDS
+        y_preds += model.predict_proba(data_test)[:, 1] / N_FOLDS
+        # mean of aucs provides Mean AUC: 0.778863
         # todo: Take the harmonic mean of the predictions' rank instead of avg.
     print('\nMean AUC:', mean_score)
     subm = pd.DataFrame({col_user_id: data_test_user_id_col,
