@@ -58,19 +58,19 @@ lgbm_cfg = {
                 'random_state': 10
        },
     'params_found_by_skopt': {
-        'max_depth': 10,
-         'random_state': 2649,
-         'scale_pos_weight': 5.999009745067044,
-         'learning_rate': 0.012297696592148952,
-         'min_child_weight': 36.53309768210956,
-         'colsample_bytree': 0.6526428869408192,
-        'num_leaves': 44,
-         'min_child_samples': 30,
-         'reg_alpha': 1e-09,
-         'n_estimators': 4530,
-         'subsample_freq': 10,
-         'reg_lambda': 1000.0,
-         'subsample': 0.9408339680936121
+        'max_depth': 8,
+        'random_state': 2974,
+        'scale_pos_weight': 0.000396,
+        'learning_rate': 0.013,
+        'min_child_weight': 0.1021,
+        'colsample_bytree': 0.3516,
+        'num_leaves': 64,
+        'min_child_samples': 1,
+        'reg_alpha': 4.93e-07,
+        'n_estimators': 3110,
+        'subsample_freq': 2,
+        'reg_lambda': 4.0e-07,
+        'subsample': 0.881}
     },
     'hp_skopt_space': {
         'n_estimators': (1000, 8000),
