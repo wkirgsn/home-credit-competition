@@ -70,7 +70,7 @@ lgbm_cfg = {
         'n_estimators': 3110,
         'subsample_freq': 2,
         'reg_lambda': 4.0e-07,
-        'subsample': 0.881}
+        'subsample': 0.881
     },
     'hp_skopt_space': {
         'n_estimators': (1000, 8000),
