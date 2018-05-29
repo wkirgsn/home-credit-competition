@@ -65,7 +65,9 @@ def main():
         y_preds.append(model.predict_proba(data_test)[:, 1])
 
     print('\nMean AUC on valset: {}'.format(np.mean(val_scores)))
-    y_preds = ss.hmean([ss.rankdata(x) for x in y_preds])  # harm. mean of rank
+    # harm. mean of rank
+    y_preds = ss.hmean([ss.rankdata(x) for x in y_preds])
+    y_preds = (y_preds - np.min(y_preds))/np.ptp(y_preds)
     # y_preds = np.mean(y_preds)  # mean of predictions
 
     subm = pd.DataFrame({col_user_id: data_test_user_id_col,
