@@ -36,13 +36,15 @@ def main():
 
     dm = DataManager()
     dm.factorize_categoricals()
+
+    dm.handle_na()  # when to fill?
+
     data_train, data_test = dm.merge_tables()
 
     data_train_y = data_train.pop(col_y)
     _ = data_train.pop(col_user_id)  # do not predict on user id
     data_test_user_id_col = data_test.pop(col_user_id)
 
-    data_train, data_test = dm.handle_na(data_train, data_test)
 
     # MODEL PIPELINE
 
@@ -55,38 +57,54 @@ def main():
         y_tr, y_val = data_train_y.iloc[tr_idcs], data_train_y[va_idcs]
 
         print("\nStart LGBM for fold {}".format(i+1))
-        model = lightgbm.LGBMClassifier(**cfg.lgbm_cfg['params_found_by_skopt'])
+        model = lightgbm.LGBMClassifier(**cfg.lgbm_cfg['params'])
 
         model.fit(x_tr, y_tr, eval_set=(x_val, y_val),
-                  verbose=100, eval_metric='auc', early_stopping_rounds=150)
+                  verbose=-1, eval_metric='auc', early_stopping_rounds=150)
         score = roc_auc_score(y_val, model.predict_proba(x_val)[:, 1])
         print('AUC:', score)
         val_scores.append(score)
         y_preds.append(model.predict_proba(data_test)[:, 1])
 
     print('\nMean AUC on valset: {}'.format(np.mean(val_scores)))
-    # harm. mean of rank
-    y_preds = ss.hmean([ss.rankdata(x) for x in y_preds])
-    y_preds = (y_preds - np.min(y_preds))/np.ptp(y_preds)
-    # y_preds = np.mean(y_preds)  # mean of predictions
 
-    subm = pd.DataFrame({col_user_id: data_test_user_id_col,
-                         col_y: y_preds})
+    y_preds_hmean_rank = harm_mean_of_ranks(y_preds)
+    y_preds_mean = np.mean(y_preds)
 
-    subm_file_name = 'submissions.csv' if not debug_mode else \
-        'submissions_debug.csv'
+    subm_mean = \
+        pd.DataFrame({col_user_id: data_test_user_id_col,
+                      col_y: y_preds_mean})
+    subm_hmean_rank = \
+        pd.DataFrame({col_user_id: data_test_user_id_col,
+                      col_y: y_preds_hmean_rank})
 
-    subm.to_csv('data/out/{}'.format(subm_file_name), index=False)
-    # plot_feat_importances(model, data_train.columns)
+    subm_file_name = 'sub.csv' if not debug_mode else 'sub_debug.csv'
+
+    subm_mean.to_csv('data/out/mean_{}'.format(subm_file_name), index=False)
+    subm_hmean_rank.to_csv('data/out/hmean_rank_{}'.format(subm_file_name),
+                           index=False)
+    plot_feat_importances(model, data_train.columns)
 
 
 def plot_feat_importances(_mdl, _cols):
     fea_imp = pd.DataFrame({'imp': _mdl.feature_importances_,
                             'col': _cols})
     fea_imp = fea_imp.sort_values(['imp', 'col'],
-                                  ascending=[True, False]).iloc[-30:]
-    plt.figure()
-    fea_imp.plot(kind='barh', x='col', y='imp', figsize=(20, 10))
+                                  ascending=[False, True]).iloc[:30]
+    print("")
+    print(fea_imp)
+    if cfg.plot_cfg['do_plot']:
+        plt.figure()
+        fea_imp.plot(kind='barh', x='col', y='imp', figsize=(20, 10))
+
+
+def harm_mean_of_ranks(_preds):
+    """calculates the harmonic mean of ranks
+
+    _preds - list of lists of predictions
+    """
+    tmp = ss.hmean([ss.rankdata(x) for x in _preds])
+    return (tmp - np.min(tmp)) / np.ptp(tmp)
 
 
 if __name__ == '__main__':

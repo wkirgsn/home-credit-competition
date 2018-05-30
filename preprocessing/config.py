@@ -1,8 +1,8 @@
 """HOME CREDIT COMPETITION 2018"""
 
-debug_cfg = {'DEBUG': False,
+debug_cfg = {'DEBUG': True,
              'choose_debug_on_gpu_availability': False,
-             'n_debug': 1000,  # first n timestamps to use if debug
+             'n_debug': 10000,  # first n timestamps to use if debug
              }
 
 data_cfg = {
@@ -12,7 +12,7 @@ data_cfg = {
     }
 
 
-plot_cfg = {'do_plot': True, }
+plot_cfg = {'do_plot': False, }
 
 keras_cfg = {
     'early_stop_patience': 30,
@@ -57,6 +57,7 @@ lgbm_cfg = {
                 'verbose':-1,
                 'random_state': 10
        },
+    # These found params are shit
     'params_found_by_skopt': {
         'max_depth': 8,
         'random_state': 2974,

@@ -6,10 +6,6 @@ from joblib import Parallel, delayed
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler, StandardScaler,\
-    PolynomialFeatures, LabelEncoder
-from sklearn.pipeline import FeatureUnion, Pipeline, make_pipeline, make_union
-from sklearn.base import BaseEstimator, TransformerMixin
 
 import preprocessing.config as cfg
 
@@ -64,40 +60,71 @@ class DataManager:
 
         # original data
         self.application_train = pd.read_csv("data/raw/application_train.csv",
-                                        nrows=n_rows_to_read)
+                                             nrows=n_rows_to_read)
         self.application_test = pd.read_csv("data/raw/application_test.csv",
-                                       nrows=n_rows_to_read)
+                                            nrows=n_rows_to_read)
         self.POS_CASH = pd.read_csv('data/raw/POS_CASH_balance.csv',
-                               nrows=n_rows_to_read)
+                                    nrows=n_rows_to_read)
         self.credit_card = pd.read_csv('data/raw/credit_card_balance.csv',
-                                  nrows=n_rows_to_read)
+                                       nrows=n_rows_to_read)
         self.bureau = pd.read_csv('data/raw/bureau.csv', nrows=n_rows_to_read)
+        self.bureau_bal = pd.read_csv('data/raw/bureau_balance.csv',
+                                      nrows=n_rows_to_read)
         self.previous_app = pd.read_csv('data/raw/previous_application.csv',
-                                   nrows=n_rows_to_read)
+                                        nrows=n_rows_to_read)
+        self.installments = pd.read_csv('data/raw/installments_payments.csv',
+                                        nrows=n_rows_to_read)
 
     @measure_time
     def factorize_categoricals(self):
         print('factorize categoricals..')
-        le = LabelEncoder()
-        cat_feat = 'NAME_CONTRACT_STATUS'
-        self.POS_CASH[cat_feat] = \
-            le.fit_transform(self.POS_CASH[cat_feat].astype(str))
-        nunique_status = \
-            self.POS_CASH[[col_user_id, cat_feat]].groupby(col_user_id) \
-                .nunique()[[cat_feat]] \
-                .rename(columns={cat_feat: 'NUNIQUE_STATUS_POS_CASH'})
 
-        nunique_status.reset_index(inplace=True)
+        def _find_cats_and_factorize(_df, _prll, testset=None):
+            cat_features = _df.loc[:, _df.dtypes == object].columns.tolist()
+            ret_list = _prll(delayed(self._prll_factorize)
+                             (_df.loc[:, col]) for col in cat_features)
+            for s, idx, col in ret_list:
+                _df[col] = s
+                if testset is not None:
+                    testset[col] = idx.get_indexer(testset.loc[:, col])
+            return _df, testset
+
+        with Parallel(n_jobs=2) as prll:
+
+            self.application_train, self.application_test = \
+                _find_cats_and_factorize(self.application_train.copy(), prll,
+                                         self.application_test.copy())
+
+            self.POS_CASH, _ = _find_cats_and_factorize(self.POS_CASH, prll)
+            self.credit_card, _ = _find_cats_and_factorize(self.credit_card,
+                                                           prll)
+            self.bureau, _ = _find_cats_and_factorize(self.bureau, prll)
+            self.bureau_bal, _ = _find_cats_and_factorize(self.bureau_bal, prll)
+            self.previous_app, _ = _find_cats_and_factorize(self.previous_app,
+                                                            prll)
+            self.installments, _ = _find_cats_and_factorize(self.installments,
+                                                            prll)
+
+    def get_special_features(self):
+        # todo: add features!!!
+        cat_feat = 'NAME_CONTRACT_STATUS'
+
+        nunique_status = (
+            self.POS_CASH[[col_user_id, cat_feat]].groupby(col_user_id)
+                .nunique()[[cat_feat]]
+                .rename(columns={cat_feat: 'NUNIQUE_STATUS_POS_CASH'})
+                .reset_index())
+
         self.POS_CASH = self.POS_CASH.merge(nunique_status, how='left',
                                       on=col_user_id)
+
         self.POS_CASH.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
 
-        self.credit_card[cat_feat] = \
-            le.fit_transform(self.credit_card[cat_feat].astype(str))
-        nunique_status = \
-            self.credit_card[[col_user_id, cat_feat]] \
-                .groupby(col_user_id).nunique()[[cat_feat]] \
-                .rename(columns={cat_feat: 'NUNIQUE_STATUS_CREDIT_CARD'})
+
+        nunique_status = (
+            self.credit_card[[col_user_id, cat_feat]]
+                .groupby(col_user_id).nunique()[[cat_feat]]
+                .rename(columns={cat_feat: 'NUNIQUE_STATUS_CREDIT_CARD'}))
         nunique_status.reset_index(inplace=True)
         self.credit_card = self.credit_card.merge(nunique_status, how='left',
                                         on=col_user_id)
@@ -106,7 +133,6 @@ class DataManager:
         bureau_cat_features = [f for f in self.bureau.columns if
                                self.bureau[f].dtype == 'object']
         for f in bureau_cat_features:
-            self.bureau[f] = le.fit_transform(self.bureau[f].astype(str))
             nunique = self.bureau[[col_user_id, f]].groupby(col_user_id) \
                 .nunique()[[f]] \
                 .rename(columns={f: 'NUNIQUE_' + f})
@@ -118,7 +144,6 @@ class DataManager:
         previous_app_cat_features = [f for f in self.previous_app.columns if
                                      self.previous_app[f].dtype == 'object']
         for f in previous_app_cat_features:
-            self.previous_app[f] = le.fit_transform(self.previous_app[f].astype(str))
             nunique = self.previous_app[[col_user_id, f]].groupby(col_user_id) \
                 .nunique()[[f]] \
                 .rename(columns={f: 'NUNIQUE_' + f})
@@ -128,32 +153,11 @@ class DataManager:
             self.previous_app.drop([f], axis=1, inplace=True)
         self.previous_app.drop(['SK_ID_PREV'], axis=1, inplace=True)
 
-        main_set_cat_features = [f for f in self.application_train.columns if
-                                 self.application_train[f].dtype == 'object']
-        # todo: parallelize this
-
-        with Parallel(n_jobs=2) as prll:
-            ret_list = prll(delayed(self._prll_factorize)(
-                self.application_train, col) for col in main_set_cat_features)
-            for series, col in ret_list:
-                self.application_train[col] = series
-            ret_list = prll(delayed(self._prll_factorize)(
-                self.application_test, col) for col in main_set_cat_features)
-            for series, col in ret_list:
-                self.application_test[col] = series
-
-        """ Parallelization replaces the following:          
-        for col in main_set_cat_features:
-            self.application_train[col], _ = \
-                self.application_train.loc[:, col].astype(str).factorize()
-            self.application_test[col], _ = \
-                self.application_test.loc[:, col].astype(str).factorize()
-        """
     @staticmethod
-    def _prll_factorize(_df, _col):
+    def _prll_factorize(_s):
         """Parallel factorization"""
-        series, _ = _df.loc[:, _col].astype(str).factorize()
-        return series, _col
+        series, indexer = _s.factorize()
+        return series, indexer, _s.name
 
     @measure_time
     def merge_tables(self):
@@ -168,32 +172,33 @@ class DataManager:
             col_user_id).mean().reset_index()
 
         # merge to dataset
-        train_set = \
-            self.application_train.merge(pos_cash_mean_per_id, how='left',
-                                    on=col_user_id)
-        test_set = \
-            self.application_test.merge(pos_cash_mean_per_id, how='left',
-                                   on=col_user_id)
+        train_set = (
+            self.application_train
+                .merge(pos_cash_mean_per_id, how='left', on=col_user_id)
+                .merge(credit_card_mean_per_id, how='left', on=col_user_id)
+                .merge(bureau_mean_per_id, how='left', on=col_user_id)
+                .merge(previous_app_mean_per_id, how='left', on=col_user_id)
+        )
+        test_set = (
+            self.application_test
+                .merge(pos_cash_mean_per_id, how='left', on=col_user_id)
+                .merge(credit_card_mean_per_id, how='left', on=col_user_id)
+                .merge(bureau_mean_per_id, how='left', on=col_user_id)
+                .merge(previous_app_mean_per_id, how='left', on=col_user_id)
+        )
 
-        train_set = \
-            train_set.merge(credit_card_mean_per_id, how='left', on=col_user_id)
-        test_set = \
-            test_set.merge(credit_card_mean_per_id, how='left', on=col_user_id)
-
-        train_set = \
-            train_set.merge(bureau_mean_per_id, how='left', on=col_user_id)
-        test_set = \
-            test_set.merge(bureau_mean_per_id, how='left', on=col_user_id)
-
-        train_set = \
-            train_set.merge(previous_app_mean_per_id, how='left', on=col_user_id)
-        test_set = \
-            test_set.merge(previous_app_mean_per_id, how='left', on=col_user_id)
         return train_set, test_set
 
-    @staticmethod
-    def handle_na(_train, _test):
-        return _train.fillna(-1), _test.fillna(-1)
+    def handle_na(self):
+        na_value = -99
+        self.application_train.fillna(na_value)
+        self.application_test.fillna(na_value)
+        self.POS_CASH.fillna(na_value)
+        self.credit_card.fillna(na_value)
+        self.installments.fillna(na_value)
+        self.previous_app.fillna(na_value)
+        self.bureau.fillna(na_value)
+        self.bureau_bal.fillna(na_value)
 
     def inverse_prediction(self, pred):
         pass
