@@ -109,18 +109,31 @@ class DataManager:
         # todo: add features!!!
         cat_feat = 'NAME_CONTRACT_STATUS'
 
-        nunique_status = (
+        nunique_contract_status = (
             self.POS_CASH[[col_user_id, cat_feat]].groupby(col_user_id)
                 .nunique()[[cat_feat]]
-                .rename(columns={cat_feat: 'NUNIQUE_STATUS_POS_CASH'})
+                .rename(index=str,
+                        columns={cat_feat: 'NUNIQUE_STATUS_POS_CASH'})
                 .reset_index())
 
-        self.POS_CASH = self.POS_CASH.merge(nunique_status, how='left',
-                                      on=col_user_id)
+        count_contract_status = (
+            self.POS_CASH[[col_user_id, cat_feat]]
+                .groupby(col_user_id)
+                .count()[[cat_feat]]
+                .rename(index=str, columns={cat_feat: 'COUNT_STATUS_POS_CASH'})
+                .reset_index()
+        )
+
+        self.POS_CASH = (
+            self.POS_CASH.merge(nunique_contract_status,
+                                how='left', on=col_user_id)
+                         .merge(count_contract_status,
+                                how='left', on=col_user_id)
+        )
 
         self.POS_CASH.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
 
-
+        # todo: more more more, see references!
         nunique_status = (
             self.credit_card[[col_user_id, cat_feat]]
                 .groupby(col_user_id).nunique()[[cat_feat]]
