@@ -106,21 +106,24 @@ class DataManager:
                                                             prll)
 
     def get_special_features(self):
+        """Heavy Feature Engineering"""
+
         # todo: add features!!!
         cat_feat = 'NAME_CONTRACT_STATUS'
 
         nunique_contract_status = (
-            self.POS_CASH[[col_user_id, cat_feat]].groupby(col_user_id)
+            self.POS_CASH[[col_user_id, cat_feat]]
+                .groupby(col_user_id)
                 .nunique()[[cat_feat]]
                 .rename(index=str,
-                        columns={cat_feat: 'NUNIQUE_STATUS_POS_CASH'})
+                        columns={cat_feat: 'NUNIQUE_CONTRACT_STATUS'})
                 .reset_index())
 
         count_contract_status = (
             self.POS_CASH[[col_user_id, cat_feat]]
                 .groupby(col_user_id)
                 .count()[[cat_feat]]
-                .rename(index=str, columns={cat_feat: 'COUNT_STATUS_POS_CASH'})
+                .rename(index=str, columns={cat_feat: 'COUNT_CONTRACT_STATUS'})
                 .reset_index()
         )
 
@@ -136,13 +139,19 @@ class DataManager:
         # todo: more more more, see references!
         nunique_status = (
             self.credit_card[[col_user_id, cat_feat]]
-                .groupby(col_user_id).nunique()[[cat_feat]]
-                .rename(columns={cat_feat: 'NUNIQUE_STATUS_CREDIT_CARD'}))
-        nunique_status.reset_index(inplace=True)
-        self.credit_card = self.credit_card.merge(nunique_status, how='left',
-                                        on=col_user_id)
+                .groupby(col_user_id)
+                .nunique()[[cat_feat]]
+                .rename(columns={cat_feat: 'NUNIQUE_CONTRACT_STATUS'})
+                .reset_index())
+        self.credit_card = self.credit_card.merge(nunique_status,
+                                                  how='left',
+                                                  on=col_user_id)
         self.credit_card.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
 
+        # BUREAU
+        """Source: https://www.kaggle.com/shanth84/
+        home-credit-bureau-data-feature-engineering/notebook
+        """
         bureau_cat_features = [f for f in self.bureau.columns if
                                self.bureau[f].dtype == 'object']
         for f in bureau_cat_features:
@@ -187,17 +196,25 @@ class DataManager:
         # merge to dataset
         train_set = (
             self.application_train
-                .merge(pos_cash_mean_per_id, how='left', on=col_user_id)
-                .merge(credit_card_mean_per_id, how='left', on=col_user_id)
-                .merge(bureau_mean_per_id, how='left', on=col_user_id)
-                .merge(previous_app_mean_per_id, how='left', on=col_user_id)
+                .merge(pos_cash_mean_per_id, how='left', on=col_user_id,
+                       suffixes=('', '_POS_CASH'))
+                .merge(credit_card_mean_per_id, how='left', on=col_user_id,
+                       suffixes=('', '_CC'))
+                .merge(bureau_mean_per_id, how='left', on=col_user_id,
+                       suffixes=('', '_BUREAU'))
+                .merge(previous_app_mean_per_id, how='left', on=col_user_id,
+                       suffixes=('', '_PREV_APP'))
         )
         test_set = (
             self.application_test
-                .merge(pos_cash_mean_per_id, how='left', on=col_user_id)
-                .merge(credit_card_mean_per_id, how='left', on=col_user_id)
-                .merge(bureau_mean_per_id, how='left', on=col_user_id)
-                .merge(previous_app_mean_per_id, how='left', on=col_user_id)
+                .merge(pos_cash_mean_per_id, how='left', on=col_user_id,
+                       suffixes=('', '_POS_CASH'))
+                .merge(credit_card_mean_per_id, how='left', on=col_user_id,
+                       suffixes=('', '_CC'))
+                .merge(bureau_mean_per_id, how='left', on=col_user_id,
+                       suffixes=('', '_BUREAU'))
+                .merge(previous_app_mean_per_id, how='left', on=col_user_id,
+                       suffixes=('', '_PREV_APP'))
         )
 
         return train_set, test_set
@@ -218,14 +235,6 @@ class DataManager:
 
     def plot(self):
         pass
-
-    def indicate_start_of_profile(self, s):
-        """Returns a DataFrame where the first observation of each new profile
-        id is indicated with True."""
-        assert isinstance(s, pd.DataFrame)
-        assert s.columns == self.PROFILE_ID_COL
-        return pd.DataFrame(data=~s.duplicated(),
-                            columns=[self.START_OF_PROFILE_COL])
 
     @staticmethod
     def sum_of_squares(df):
