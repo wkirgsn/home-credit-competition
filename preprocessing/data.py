@@ -74,6 +74,7 @@ class DataManager:
                                         nrows=n_rows_to_read)
         self.installments = pd.read_csv('data/raw/installments_payments.csv',
                                         nrows=n_rows_to_read)
+        self.categorical_columns = {}
 
     @measure_time
     def factorize_categoricals(self):
@@ -87,82 +88,104 @@ class DataManager:
                 _df[col] = s
                 if testset is not None:
                     testset[col] = idx.get_indexer(testset.loc[:, col])
-            return _df, testset
+            return _df, testset, cat_features
 
         with Parallel(n_jobs=2) as prll:
 
-            self.application_train, self.application_test = \
+            self.application_train,\
+            self.application_test, \
+            self.categorical_columns['app_main'] = \
                 _find_cats_and_factorize(self.application_train.copy(), prll,
                                          self.application_test.copy())
 
-            self.POS_CASH, _ = _find_cats_and_factorize(self.POS_CASH, prll)
-            self.credit_card, _ = _find_cats_and_factorize(self.credit_card,
-                                                           prll)
-            self.bureau, _ = _find_cats_and_factorize(self.bureau, prll)
-            self.bureau_bal, _ = _find_cats_and_factorize(self.bureau_bal, prll)
-            self.previous_app, _ = _find_cats_and_factorize(self.previous_app,
-                                                            prll)
-            self.installments, _ = _find_cats_and_factorize(self.installments,
-                                                            prll)
+            self.POS_CASH, _, self.categorical_columns['pos_cash'] = \
+                _find_cats_and_factorize(self.POS_CASH, prll)
+            self.credit_card, _, self.categorical_columns['credit_card'] = \
+                _find_cats_and_factorize(self.credit_card, prll)
+            self.bureau, _, self.categorical_columns['bureau'] = \
+                _find_cats_and_factorize(self.bureau, prll)
+            self.bureau_bal, _, self.categorical_columns['bureau_bal'] = \
+                _find_cats_and_factorize(self.bureau_bal, prll)
+            self.previous_app, _, self.categorical_columns['prev_app'] = \
+                _find_cats_and_factorize(self.previous_app, prll)
+            self.installments, _, self.categorical_columns['installments'] = \
+                _find_cats_and_factorize(self.installments, prll)
 
     def get_special_features(self):
         """Heavy Feature Engineering"""
-
+        merge_cfg = {'how': 'left',
+                     'on': col_user_id}
         # todo: add features!!!
-        cat_feat = 'NAME_CONTRACT_STATUS'
-
-        nunique_contract_status = (
-            self.POS_CASH[[col_user_id, cat_feat]]
+        # POS CASH
+        more_on_contract_status = (
+            self.POS_CASH[[col_user_id, *self.categorical_columns['pos_cash']]]
                 .groupby(col_user_id)
-                .nunique()[[cat_feat]]
-                .rename(index=str,
-                        columns={cat_feat: 'NUNIQUE_CONTRACT_STATUS'})
-                .reset_index())
-
-        count_contract_status = (
-            self.POS_CASH[[col_user_id, cat_feat]]
-                .groupby(col_user_id)
-                .count()[[cat_feat]]
-                .rename(index=str, columns={cat_feat: 'COUNT_CONTRACT_STATUS'})
+                .agg(['count', 'nunique'])
                 .reset_index()
-        )
+                )
+        # flatten multiindex
+        more_on_contract_status.columns = \
+            ['_'.join(col).strip('_') for col in
+             more_on_contract_status.columns.values]
 
-        self.POS_CASH = (
-            self.POS_CASH.merge(nunique_contract_status,
-                                how='left', on=col_user_id)
-                         .merge(count_contract_status,
-                                how='left', on=col_user_id)
-        )
+        self.POS_CASH = self.POS_CASH.merge(more_on_contract_status,
+                                            **merge_cfg)
 
-        self.POS_CASH.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
+        self.POS_CASH.drop(['SK_ID_PREV',
+                            *self.categorical_columns['pos_cash']],
+                           axis=1, inplace=True)
 
+        # CREDIT CARD
         # todo: more more more, see references!
-        nunique_status = (
-            self.credit_card[[col_user_id, cat_feat]]
+        more_on_contract_status = (
+            self.credit_card[[col_user_id,
+                              *self.categorical_columns['credit_card']]]
                 .groupby(col_user_id)
-                .nunique()[[cat_feat]]
-                .rename(columns={cat_feat: 'NUNIQUE_CONTRACT_STATUS'})
+                .agg(['nunique', 'count'])
                 .reset_index())
-        self.credit_card = self.credit_card.merge(nunique_status,
-                                                  how='left',
-                                                  on=col_user_id)
-        self.credit_card.drop(['SK_ID_PREV', cat_feat], axis=1, inplace=True)
+        # flatten multiindex
+        more_on_contract_status.columns = \
+            ['_'.join(col).strip('_') for col in
+             more_on_contract_status.columns.values]
+        self.credit_card = self.credit_card.merge(more_on_contract_status,
+                                                  **merge_cfg)
+        self.credit_card.drop(['SK_ID_PREV',
+                               *self.categorical_columns['credit_card']],
+                              axis=1, inplace=True)
 
         # BUREAU
         """Source: https://www.kaggle.com/shanth84/
         home-credit-bureau-data-feature-engineering/notebook
         """
-        bureau_cat_features = [f for f in self.bureau.columns if
-                               self.bureau[f].dtype == 'object']
-        for f in bureau_cat_features:
-            nunique = self.bureau[[col_user_id, f]].groupby(col_user_id) \
-                .nunique()[[f]] \
-                .rename(columns={f: 'NUNIQUE_' + f})
-            nunique.reset_index(inplace=True)
-            self.bureau = self.bureau.merge(nunique, how='left', on=col_user_id)
-            self.bureau.drop([f], axis=1, inplace=True)  # todo: why is this dropped?
-        self.bureau.drop(['SK_ID_BUREAU'], axis=1, inplace=True)
+        bureau_new_feats = (
+            self.bureau[[col_user_id, *self.categorical_columns['bureau']]]
+                .groupby(col_user_id)
+                .agg(['nunique'])
+                .reset_index()
+        )
+        bureau_new_feats.columns = \
+            ['_'.join(col).strip('_') for col in
+             bureau_new_feats.columns.values]
 
+        n_entries = (
+            self.bureau[[col_user_id,
+                         self.categorical_columns['bureau'][0]]]
+                .groupby(col_user_id)
+                .count()
+                .reset_index()
+                .rename(
+                columns={self.categorical_columns['bureau'][0]: 'entries_in'})
+        )
+
+        self.bureau = (
+            self.bureau
+                .merge(bureau_new_feats, **merge_cfg)
+                .merge(n_entries, **merge_cfg)
+        )
+        self.bureau.drop(['SK_ID_BUREAU', *self.categorical_columns['bureau']],
+                         axis=1, inplace=True)
+
+        # PREV APP
         previous_app_cat_features = [f for f in self.previous_app.columns if
                                      self.previous_app[f].dtype == 'object']
         for f in previous_app_cat_features:
@@ -170,8 +193,7 @@ class DataManager:
                 .nunique()[[f]] \
                 .rename(columns={f: 'NUNIQUE_' + f})
             nunique.reset_index(inplace=True)
-            self.previous_app = self.previous_app.merge(nunique, how='left',
-                                              on=col_user_id)
+            self.previous_app = self.previous_app.merge(nunique, **merge_cfg)
             self.previous_app.drop([f], axis=1, inplace=True)
         self.previous_app.drop(['SK_ID_PREV'], axis=1, inplace=True)
 
