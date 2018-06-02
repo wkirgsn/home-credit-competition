@@ -39,28 +39,64 @@ def main():
     dm.get_special_features()  # todo: refactor this function
     dm.handle_na()  # todo: when to fill NaNs?
 
-    data_train, data_test = dm.merge_tables()
+    data_train, data_test = dm.merge_tables() # pandas.DataFrame
 
-    data_train_y = data_train.pop(col_y)
+    data_train_y = data_train.pop(col_y)    # LKI: what is my purpose?
     _ = data_train.pop(col_user_id)  # do not predict on user id
     data_test_user_id_col = data_test.pop(col_user_id)
 
 
     # MODEL PIPELINE
 
+    # Stratified K-Fold cross-validator.
+    # Provides train/test indices to split data in train/test sets.
+    # This cross-validation object is a variation of KFold that returns stratified folds.
+    # The folds are made by preserving the percentage of samples for each class.
+    # WIKI k-fold cross-validation: https://en.wikipedia.org/wiki/Cross-validation_(statistics)#k-fold_cross-validation
     skfold = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
+
     y_preds = []
     val_scores = []
+
+    # enumerate(iterable, start=0)
+    # Return an enumerate object. iterable must support iteration.
+    # __next__() returns a tuple containing count and value obtained from iterating over iterable.
+
+    # split(X, y, groups=None)
+    # Generate indices to split data into training and test set.
     for i, (tr_idcs, va_idcs) in enumerate(skfold.split(data_train,
                                                         data_train_y)):
+
+        # iloc[<row selection>, <column selection>]
+        # "iloc" in pandas is used to select rows and columns by number, in the order that they appear in teh data frame
+        # https://www.shanelynn.ie/select-pandas-dataframe-rows-and-columns-using-iloc-loc-and-ix/#iloc-selection
+
         x_tr, x_val = data_train.iloc[tr_idcs, :], data_train.iloc[va_idcs, :]
         y_tr, y_val = data_train_y.iloc[tr_idcs], data_train_y[va_idcs]
 
         print("\nStart LGBM for fold {}".format(i+1))
         model = lightgbm.LGBMClassifier(**cfg.lgbm_cfg['params'])
 
+        # LightGBM.fit()
+        # Build a gradient boosting model from the training set (X,y).
+        # http://lightgbm.readthedocs.io/en/latest/Python-API.html#lightgbm.LGBMModel.fit
+
+        # Gradient Boosting from scratch
+        # https://medium.com/mlreview/gradient-boosting-from-scratch-1e317ae4587d
+
         model.fit(x_tr, y_tr, eval_set=(x_val, y_val),
                   verbose=-1, eval_metric='auc', early_stopping_rounds=150)
+
+        # sklearn.metrics.roc_auc_score()
+        # Compute Area Under the Receiver Operating Characteristics Curve (ROC AUC) from prediction scores.
+
+        # Accuracy is measured by the area under the ROC curve.
+        # area = 1.0: perfect
+        # area = 0.5: fail
+
+        # LightGBM.predict_proba()
+        # Return the predicted probability for each class for each sample.
+
         score = roc_auc_score(y_val, model.predict_proba(x_val)[:, 1])
         print('AUC:', score)
         val_scores.append(score)

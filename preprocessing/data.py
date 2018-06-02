@@ -55,6 +55,10 @@ class DataManager:
     @measure_time
     def __init__(self):
         print('load data...')
+
+        # Number of rows to pull in.
+        # DEBUG = 10000 rows
+        # Else  = all rows
         n_rows_to_read = \
             cfg.debug_cfg['n_debug'] if cfg.debug_cfg['DEBUG'] else None
 
@@ -68,6 +72,7 @@ class DataManager:
         self.credit_card = pd.read_csv('data/raw/credit_card_balance.csv',
                                        nrows=n_rows_to_read)
         self.bureau = pd.read_csv('data/raw/bureau.csv', nrows=n_rows_to_read)
+
         self.bureau_bal = pd.read_csv('data/raw/bureau_balance.csv',
                                       nrows=n_rows_to_read)
         self.previous_app = pd.read_csv('data/raw/previous_application.csv',
@@ -81,6 +86,8 @@ class DataManager:
         print('factorize categoricals..')
 
         def _find_cats_and_factorize(_df, _prll, testset=None):
+            # Pandas.loc()
+            # Access a group of rows and columns by labels.
             cat_features = _df.loc[:, _df.dtypes == object].columns.tolist()
             ret_list = _prll(delayed(self._prll_factorize)
                              (_df.loc[:, col]) for col in cat_features)
