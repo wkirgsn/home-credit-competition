@@ -39,7 +39,7 @@ def main():
     dm.get_special_features()  # todo: refactor this function
     dm.handle_na()  # todo: when to fill NaNs?
 
-    data_train, data_test = dm.merge_tables() # pandas.DataFrame
+    data_train, data_test = dm.merge_tables()  # pandas.DataFrame
 
     data_train_y = data_train.pop(col_y)    # LKI: what is my purpose?
     _ = data_train.pop(col_user_id)  # do not predict on user id
@@ -72,7 +72,7 @@ def main():
         # https://www.shanelynn.ie/select-pandas-dataframe-rows-and-columns-using-iloc-loc-and-ix/#iloc-selection
 
         x_tr, x_val = data_train.iloc[tr_idcs, :], data_train.iloc[va_idcs, :]
-        y_tr, y_val = data_train_y.iloc[tr_idcs], data_train_y[va_idcs]
+        y_tr, y_val = data_train_y[tr_idcs], data_train_y[va_idcs]
 
         print("\nStart LGBM for fold {}".format(i+1))
         model = lightgbm.LGBMClassifier(**cfg.lgbm_cfg['params'])

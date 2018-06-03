@@ -1,5 +1,5 @@
 """
-Author: Kirgsn, 2018, https://www.kaggle.com/wkirgsn
+Author: WKirgsn, 2018, https://www.kaggle.com/wkirgsn
 """
 import time
 from joblib import Parallel, delayed
@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 import preprocessing.config as cfg
-
+from preprocessing.reducing import Reducer
 
 col_user_id = 'SK_ID_CURR'
 col_y = 'TARGET'
@@ -23,31 +23,6 @@ def measure_time(func):
         print('took {:.3} seconds'.format(end_time-start_time))
         return ret
     return wrapped
-
-
-class ColumnManager:
-    """Class to keep track of the current input columns and for general
-    economy of features"""
-    def __init__(self, df, white_list=[]):
-        self.original = list(df.columns)
-        self._x, self._y = None, cfg.data_cfg['Target_param_names']
-        self.white_list = white_list
-        self.update(df)
-
-    @property
-    def x_cols(self):
-        return self._x
-
-    @x_cols.setter
-    def x_cols(self, value):
-        self._x = value
-
-    @property
-    def y_cols(self):
-        return self._y
-
-    def update(self, df):
-        self.x_cols = list(df.columns)
 
 
 class DataManager:
@@ -80,6 +55,23 @@ class DataManager:
         self.installments = pd.read_csv('data/raw/installments_payments.csv',
                                         nrows=n_rows_to_read)
         self.categorical_columns = {}
+        """
+        reducer = Reducer()
+        self.application_train = reducer.reduce(self.application_train)
+        self.application_test = reducer.reduce(self.application_test)
+        self.POS_CASH = reducer.reduce(self.POS_CASH)
+        self.credit_card = reducer.reduce(self.credit_card)
+        self.bureau = reducer.reduce(self.bureau)
+        self.bureau_bal = reducer.reduce(self.bureau_bal)
+        self.previous_app = reducer.reduce(self.previous_app)
+        self.installments = reducer.reduce(self.installments)
+        """
+
+    @staticmethod
+    def _prll_factorize(_s):
+        """Parallel factorization"""
+        series, indexer = _s.factorize()
+        return series, indexer, _s.name
 
     @measure_time
     def factorize_categoricals(self):
@@ -213,12 +205,6 @@ class DataManager:
             self.previous_app = self.previous_app.merge(nunique, **merge_cfg)
             self.previous_app.drop([f], axis=1, inplace=True)
         self.previous_app.drop(['SK_ID_PREV'], axis=1, inplace=True)
-
-    @staticmethod
-    def _prll_factorize(_s):
-        """Parallel factorization"""
-        series, indexer = _s.factorize()
-        return series, indexer, _s.name
 
     @measure_time
     def merge_tables(self):

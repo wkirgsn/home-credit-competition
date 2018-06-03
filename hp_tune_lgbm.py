@@ -45,19 +45,20 @@ if __name__ == '__main__':
 
     dm = DataManager()
     dm.factorize_categoricals()
-    data_train, data_test = dm.merge_tables()
+    dm.get_special_features()  # todo: refactor this function
+    dm.handle_na()  # todo: when to fill NaNs?
 
-    data_train_y = data_train.pop(col_y)
+    data_train, data_test = dm.merge_tables()  # pandas.DataFrame
+
+    data_train_y = data_train.pop(col_y)  # LKI: what is my purpose?
     _ = data_train.pop(col_user_id)  # do not predict on user id
     data_test_user_id_col = data_test.pop(col_user_id)
-
-    data_train, data_test = dm.handle_na(data_train, data_test)
 
     # MODEL PIPELINE
 
     skfold = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
 
-    model = lightgbm.LGBMClassifier(verbose=-1)
+    model = lightgbm.LGBMClassifier(verbose=-1, n_estimators=3500)
 
     hyper_params = cfg.lgbm_cfg['hp_skopt_space']
     opt_search = \

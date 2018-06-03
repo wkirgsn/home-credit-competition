@@ -43,7 +43,7 @@ keras_cfg = {
 }
 
 lgbm_cfg = {
-    'params': {'n_estimators':4000,
+    'params': {
                 'learning_rate':0.03,
                 'num_leaves':30,
                 'colsample_bytree':.8,
@@ -74,19 +74,20 @@ lgbm_cfg = {
         'subsample': 0.881
     },
     'hp_skopt_space': {
-        'n_estimators': (1000, 8000),
         'learning_rate': (0.01, 1.0, 'log-uniform'),
-        'num_leaves': (2, 64),
-        'max_depth': (2, 16),
+        'num_leaves': (16, 128),
+        'max_depth': (2, 9),
         'min_child_weight': (0.01, 100, 'log-uniform'),
         'min_child_samples': (1, 50),
         'subsample': (0.01, 1.0, 'uniform'),
-        'subsample_freq': (0, 10),
+        'subsample_freq': (0, 1.0),
         'colsample_bytree': (0.01, 1.0, 'uniform'),
         'random_state': (2000, 3000),  # arbitrary
-        'reg_lambda': (1e-9, 1000, 'log-uniform'),
-        'reg_alpha': (1e-9, 1.0, 'log-uniform'),
+        'reg_lambda': (1e-6, 0.2, 'log-uniform'),
+        'reg_alpha': (1e-6, 0.2, 'log-uniform'),
         'scale_pos_weight': (1e-6, 10000, 'log-uniform'),
+        'min_split_gain': (1e-5, 0.1, 'log-uniform'),
+        'min_data_in_leaf': (20, 100),
         },
 
 }
