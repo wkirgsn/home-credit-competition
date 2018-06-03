@@ -164,15 +164,15 @@ class DataManager:
         """Source: https://www.kaggle.com/shanth84/
         home-credit-bureau-data-feature-engineering/notebook
         """
-        bureau_new_feats = (
+        n_unique_categoricals = (
             self.bureau[[col_user_id, *self.categorical_columns['bureau']]]
                 .groupby(col_user_id)
                 .agg(['nunique'])
                 .reset_index()
         )
-        bureau_new_feats.columns = \
+        n_unique_categoricals.columns = \
             ['_'.join(col).strip('_') for col in
-             bureau_new_feats.columns.values]
+             n_unique_categoricals.columns.values]
 
         n_entries = (
             self.bureau[[col_user_id,
@@ -184,10 +184,20 @@ class DataManager:
                 columns={self.categorical_columns['bureau'][0]: 'entries_in'})
         )
 
+        # todo: Filter the "Active" values from the 4 possible in this feat
+        mean_active_credits = (
+            self.bureau[[col_user_id, 'CREDIT_ACTIVE']]
+                .groupby(col_user_id)
+                .mean()
+                .reset_index()
+                .rename(columns={'CREDIT_ACTIVE': 'mean_active_credits'})
+        )
+
         self.bureau = (
             self.bureau
-                .merge(bureau_new_feats, **merge_cfg)
+                .merge(n_unique_categoricals, **merge_cfg)
                 .merge(n_entries, **merge_cfg)
+                .merge(mean_active_credits, **merge_cfg)
         )
         self.bureau.drop(['SK_ID_BUREAU', *self.categorical_columns['bureau']],
                          axis=1, inplace=True)
