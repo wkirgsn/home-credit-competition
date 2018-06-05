@@ -1,6 +1,6 @@
 """HOME CREDIT COMPETITION 2018"""
 
-debug_cfg = {'DEBUG': True,
+debug_cfg = {'DEBUG': False,
              'choose_debug_on_gpu_availability': False,
              'n_debug': 10000,  # first n timestamps to use if debug
              }
@@ -80,14 +80,14 @@ lgbm_cfg = {
         'min_child_weight': (0.01, 100, 'log-uniform'),
         'min_child_samples': (1, 50),
         'subsample': (0.01, 1.0, 'uniform'),
-        'subsample_freq': (0, 1.0),
+        'subsample_freq': (0, 10),
         'colsample_bytree': (0.01, 1.0, 'uniform'),
         'random_state': (2000, 3000),  # arbitrary
         'reg_lambda': (1e-6, 0.2, 'log-uniform'),
         'reg_alpha': (1e-6, 0.2, 'log-uniform'),
         'scale_pos_weight': (1e-6, 10000, 'log-uniform'),
         'min_split_gain': (1e-5, 0.1, 'log-uniform'),
-        'min_data_in_leaf': (20, 100),
+
         },
 
 }

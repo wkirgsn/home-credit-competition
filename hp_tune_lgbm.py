@@ -70,7 +70,9 @@ if __name__ == '__main__':
                       random_state=SEED,
                       scoring='roc_auc',
                       fit_params={'eval_metric': 'auc',
-                                  'verbose': 100})
+                                  'verbose': 100},
+                      n_jobs=-1
+                      )
     opt_search.fit(data_train, data_train_y, callback=status_print)
 
     status_print(None)
