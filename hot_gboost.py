@@ -103,6 +103,7 @@ def main():
         y_preds.append(model.predict_proba(data_test)[:, 1])
 
     print('\nMean AUC on valset: {}'.format(np.mean(val_scores)))
+    # todo: Show also prediction distribution. What does that mean at all?
 
     y_preds_hmean_rank = harm_mean_of_ranks(y_preds)
     y_preds_mean = np.mean(y_preds)

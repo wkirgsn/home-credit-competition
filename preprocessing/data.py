@@ -54,18 +54,19 @@ class DataManager:
                                         nrows=n_rows_to_read)
         self.installments = pd.read_csv('data/raw/installments_payments.csv',
                                         nrows=n_rows_to_read)
-        self.categorical_columns = {}
-        """
-        reducer = Reducer()
-        self.application_train = reducer.reduce(self.application_train)
-        self.application_test = reducer.reduce(self.application_test)
-        self.POS_CASH = reducer.reduce(self.POS_CASH)
-        self.credit_card = reducer.reduce(self.credit_card)
-        self.bureau = reducer.reduce(self.bureau)
-        self.bureau_bal = reducer.reduce(self.bureau_bal)
-        self.previous_app = reducer.reduce(self.previous_app)
-        self.installments = reducer.reduce(self.installments)
-        """
+        self.cat_encode = {}
+        self.nan_table = {}
+
+        if not cfg.debug_cfg['DEBUG']:
+            reducer = Reducer()
+            self.application_train = reducer.reduce(self.application_train)
+            self.application_test = reducer.reduce(self.application_test)
+            self.POS_CASH = reducer.reduce(self.POS_CASH)
+            self.credit_card = reducer.reduce(self.credit_card)
+            self.bureau = reducer.reduce(self.bureau)
+            self.bureau_bal = reducer.reduce(self.bureau_bal)
+            self.previous_app = reducer.reduce(self.previous_app)
+            self.installments = reducer.reduce(self.installments)
 
     @staticmethod
     def _prll_factorize(_s):
@@ -77,47 +78,50 @@ class DataManager:
     def factorize_categoricals(self):
         print('factorize categoricals..')
 
-        def _find_cats_and_factorize(_df, _prll, testset=None):
-            # Pandas.loc()
-            # Access a group of rows and columns by labels.
+        def _find_cats_and_factorize(_df, _prll):
+            # todo: Are there NaNs in categorical features??
             cat_features = _df.loc[:, _df.dtypes == object].columns.tolist()
             ret_list = _prll(delayed(self._prll_factorize)
                              (_df.loc[:, col]) for col in cat_features)
+            indexers = {}
             for s, idx, col in ret_list:
                 _df[col] = s
-                if testset is not None:
-                    testset[col] = idx.get_indexer(testset.loc[:, col])
-            return _df, testset, cat_features
+                indexers[col] = idx
+            return _df, indexers
 
         with Parallel(n_jobs=2) as prll:
 
-            self.application_train,\
-            self.application_test, \
-            self.categorical_columns['app_main'] = \
-                _find_cats_and_factorize(self.application_train.copy(), prll,
-                                         self.application_test.copy())
+            self.application_train, self.cat_encode['app_main'] = \
+                _find_cats_and_factorize(self.application_train.copy(), prll)
+            for col, indexer in self.cat_encode['app_main'].items():
+                self.application_test[col] = \
+                    indexer.get_indexer(self.application_test.loc[:, col])
 
-            self.POS_CASH, _, self.categorical_columns['pos_cash'] = \
+            self.POS_CASH, self.cat_encode['pos_cash'] = \
                 _find_cats_and_factorize(self.POS_CASH, prll)
-            self.credit_card, _, self.categorical_columns['credit_card'] = \
+            self.credit_card, self.cat_encode['credit_card'] = \
                 _find_cats_and_factorize(self.credit_card, prll)
-            self.bureau, _, self.categorical_columns['bureau'] = \
+            self.bureau, self.cat_encode['bureau'] = \
                 _find_cats_and_factorize(self.bureau, prll)
-            self.bureau_bal, _, self.categorical_columns['bureau_bal'] = \
+            self.bureau_bal, self.cat_encode['bureau_bal'] = \
                 _find_cats_and_factorize(self.bureau_bal, prll)
-            self.previous_app, _, self.categorical_columns['prev_app'] = \
+            self.previous_app, self.cat_encode['prev_app'] = \
                 _find_cats_and_factorize(self.previous_app, prll)
-            self.installments, _, self.categorical_columns['installments'] = \
+            self.installments, self.cat_encode['installments'] = \
                 _find_cats_and_factorize(self.installments, prll)
 
+    @measure_time
     def get_special_features(self):
         """Heavy Feature Engineering"""
+
+        print('Engineer features...')
+
         merge_cfg = {'how': 'left',
                      'on': col_user_id}
-        # todo: add features!!!
+        # todo: (LKI) add features!!!
         # POS CASH
         more_on_contract_status = (
-            self.POS_CASH[[col_user_id, *self.categorical_columns['pos_cash']]]
+            self.POS_CASH[[col_user_id, *self.cat_encode['pos_cash'].keys()]]
                 .groupby(col_user_id)
                 .agg(['count', 'nunique'])
                 .reset_index()
@@ -131,14 +135,14 @@ class DataManager:
                                             **merge_cfg)
 
         self.POS_CASH.drop(['SK_ID_PREV',
-                            *self.categorical_columns['pos_cash']],
+                            *self.cat_encode['pos_cash'].keys()],
                            axis=1, inplace=True)
 
         # CREDIT CARD
-        # todo: more more more, see references!
+        # todo: (LKI) more more more, see references!
         more_on_contract_status = (
             self.credit_card[[col_user_id,
-                              *self.categorical_columns['credit_card']]]
+                              *self.cat_encode['credit_card'].keys()]]
                 .groupby(col_user_id)
                 .agg(['nunique', 'count'])
                 .reset_index())
@@ -149,7 +153,7 @@ class DataManager:
         self.credit_card = self.credit_card.merge(more_on_contract_status,
                                                   **merge_cfg)
         self.credit_card.drop(['SK_ID_PREV',
-                               *self.categorical_columns['credit_card']],
+                               *self.cat_encode['credit_card'].keys()],
                               axis=1, inplace=True)
 
         # BUREAU
@@ -157,7 +161,7 @@ class DataManager:
         home-credit-bureau-data-feature-engineering/notebook
         """
         n_unique_categoricals = (
-            self.bureau[[col_user_id, *self.categorical_columns['bureau']]]
+            self.bureau[[col_user_id, *self.cat_encode['bureau'].keys()]]
                 .groupby(col_user_id)
                 .agg(['nunique'])
                 .reset_index()
@@ -168,30 +172,31 @@ class DataManager:
 
         n_entries = (
             self.bureau[[col_user_id,
-                         self.categorical_columns['bureau'][0]]]
+                         'CREDIT_ACTIVE']]  # could have been any col
                 .groupby(col_user_id)
                 .count()
                 .reset_index()
-                .rename(
-                columns={self.categorical_columns['bureau'][0]: 'entries_in'})
+                .rename(columns={'CREDIT_ACTIVE': 'entries_in'})
         )
 
-        # todo: Filter the "Active" values from the 4 possible in this feat
-        mean_active_credits = (
-            self.bureau[[col_user_id, 'CREDIT_ACTIVE']]
+        amt_active_credits = (
+            self.bureau.loc[
+                self.bureau.CREDIT_ACTIVE ==
+                self.cat_encode['bureau']['CREDIT_ACTIVE'].get_loc('Active'),
+                [col_user_id, 'CREDIT_ACTIVE']]
                 .groupby(col_user_id)
-                .mean()
+                .count()
                 .reset_index()
-                .rename(columns={'CREDIT_ACTIVE': 'mean_active_credits'})
+                .rename(columns={'CREDIT_ACTIVE': 'amt_active_credits'})
         )
 
         self.bureau = (
             self.bureau
                 .merge(n_unique_categoricals, **merge_cfg)
                 .merge(n_entries, **merge_cfg)
-                .merge(mean_active_credits, **merge_cfg)
+                .merge(amt_active_credits, **merge_cfg)
         )
-        self.bureau.drop(['SK_ID_BUREAU', *self.categorical_columns['bureau']],
+        self.bureau.drop(['SK_ID_BUREAU', *self.cat_encode['bureau'].keys()],
                          axis=1, inplace=True)
 
         # PREV APP
@@ -246,14 +251,18 @@ class DataManager:
 
     def handle_na(self):
         na_value = -99
-        self.application_train.fillna(na_value)
-        self.application_test.fillna(na_value)
-        self.POS_CASH.fillna(na_value)
-        self.credit_card.fillna(na_value)
-        self.installments.fillna(na_value)
-        self.previous_app.fillna(na_value)
-        self.bureau.fillna(na_value)
-        self.bureau_bal.fillna(na_value)
+        self.application_train.fillna(na_value, inplace=True)
+        self.application_test.fillna(na_value, inplace=True)
+        self.POS_CASH.fillna(na_value, inplace=True)
+        self.credit_card.fillna(na_value, inplace=True)
+        self.installments.fillna(na_value, inplace=True)
+        self.previous_app.fillna(na_value, inplace=True)
+
+        self.nan_table['bureau'] = {'amt_active_credits': 0}
+
+        self.bureau.fillna(self.nan_table['bureau'], inplace=True)
+        self.bureau.fillna(na_value, inplace=True)
+        self.bureau_bal.fillna(na_value, inplace=True)
 
     def inverse_prediction(self, pred):
         pass
