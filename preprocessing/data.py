@@ -190,11 +190,42 @@ class DataManager:
                 .rename(columns={'CREDIT_ACTIVE': 'amt_active_credits'})
         )
 
+        sorted_days_credit = (
+            self.bureau.loc[:, [col_user_id, 'SK_ID_BUREAU', 'DAYS_CREDIT']]
+                .groupby(col_user_id)
+                .apply(lambda x: x.sort_values(['DAYS_CREDIT'],
+                                               ascending=False))
+                .reset_index(drop=True)
+        )
+        sorted_days_credit['NEG_DAYS_CREDIT'] = \
+            sorted_days_credit['DAYS_CREDIT']*-1
+        sorted_days_credit['DAYS_CREDIT_DIFF'] = (
+            sorted_days_credit
+                .groupby(col_user_id)['NEG_DAYS_CREDIT']
+                .diff()
+                .fillna(0)
+                .astype('uint16')
+        )
+
+        days_diff_std = (
+            sorted_days_credit[[col_user_id, 'DAYS_CREDIT_DIFF']]
+                .drop(sorted_days_credit[sorted_days_credit.DAYS_CREDIT_DIFF
+                                         == 0].index)
+                .groupby(col_user_id)
+                .agg('std')
+                .reset_index()
+                .rename(columns={'DAYS_CREDIT_DIFF': 'DAYS_CREDIT_DIFF_STD'})
+        )
+
         self.bureau = (
             self.bureau
                 .merge(n_unique_categoricals, **merge_cfg)
                 .merge(n_entries, **merge_cfg)
                 .merge(amt_active_credits, **merge_cfg)
+                .merge(sorted_days_credit.loc[:,
+                       ['SK_ID_BUREAU', 'DAYS_CREDIT_DIFF']],
+                       how='left', on='SK_ID_BUREAU')
+                .merge(days_diff_std, **merge_cfg)
         )
         self.bureau.drop(['SK_ID_BUREAU', *self.cat_encode['bureau'].keys()],
                          axis=1, inplace=True)
