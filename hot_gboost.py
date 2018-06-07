@@ -75,7 +75,8 @@ def main():
         y_tr, y_val = data_train_y[tr_idcs], data_train_y[va_idcs]
 
         print("\nStart LGBM for fold {}".format(i+1))
-        model = lightgbm.LGBMClassifier(**cfg.lgbm_cfg['params'])
+        model = lightgbm.LGBMClassifier(n_estimators=3500,
+                                        **cfg.lgbm_cfg['params'])
 
         # LightGBM.fit()
         # Build a gradient boosting model from the training set (X,y).
