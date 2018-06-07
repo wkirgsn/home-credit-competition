@@ -85,6 +85,7 @@ def main():
         # Gradient Boosting from scratch
         # https://medium.com/mlreview/gradient-boosting-from-scratch-1e317ae4587d
 
+        # todo: reduce lr during training and cycle it as of some threshold
         model.fit(x_tr, y_tr, eval_set=(x_val, y_val),
                   verbose=-1, eval_metric='auc', early_stopping_rounds=150)
 
@@ -130,6 +131,7 @@ def plot_feat_importances(_mdl, _cols):
     fea_imp = fea_imp.sort_values(['imp', 'col'],
                                   ascending=[False, True]).iloc[:30]
     print("")
+    # todo: (LKI) print the mean importances across folds!
     print(fea_imp)
     if cfg.plot_cfg['do_plot']:
         plt.figure()
