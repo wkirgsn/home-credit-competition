@@ -71,8 +71,10 @@ if __name__ == '__main__':
                       scoring='roc_auc',
                       fit_params={'eval_metric': 'auc',
                                   'verbose': 100},
+                      optimizer_kwargs={'n_initial_points': 30},
                       n_jobs=-1
                       )
+    print('## Start Search ##')
     opt_search.fit(data_train, data_train_y, callback=status_print)
 
     status_print(None)
