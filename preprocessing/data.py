@@ -200,32 +200,96 @@ class DataManager:
         sorted_days_credit['NEG_DAYS_CREDIT'] = \
             sorted_days_credit['DAYS_CREDIT']*-1
         sorted_days_credit['DAYS_CREDIT_DIFF'] = (
-            sorted_days_credit
-                .groupby(col_user_id)['NEG_DAYS_CREDIT']
-                .diff()
-                .fillna(0)
-                .astype('uint16')
+            sorted_days_credit.groupby(col_user_id)['NEG_DAYS_CREDIT']
+            .diff()
+            .fillna(0)
+            .astype('uint16')
         )
 
         days_diff_std = (
             sorted_days_credit[[col_user_id, 'DAYS_CREDIT_DIFF']]
-                .drop(sorted_days_credit[sorted_days_credit.DAYS_CREDIT_DIFF
-                                         == 0].index)
-                .groupby(col_user_id)
-                .agg('std')
-                .reset_index()
-                .rename(columns={'DAYS_CREDIT_DIFF': 'DAYS_CREDIT_DIFF_STD'})
+            .drop(sorted_days_credit[sorted_days_credit.DAYS_CREDIT_DIFF
+                                     == 0].index)
+            .groupby(col_user_id)
+            .agg('std')
+            .reset_index()
+            .rename(columns={'DAYS_CREDIT_DIFF': 'DAYS_CREDIT_DIFF_STD'})
         )
+
+        total_debt_credit_overdue = (
+            self.bureau.loc[:, [col_user_id,
+                                'AMT_CREDIT_SUM_DEBT',
+                                'AMT_CREDIT_SUM',
+                                'AMT_CREDIT_SUM_OVERDUE']]
+                .fillna(0)
+                .groupby(col_user_id)
+                .sum()
+                .reset_index()
+                .rename(
+                columns={'AMT_CREDIT_SUM': 'TOTAL_CREDIT',
+                         'AMT_CREDIT_SUM_DEBT': 'TOTAL_DEBT',
+                         'AMT_CREDIT_SUM_OVERDUE': 'TOTAL_OVERDUE_DEBT'})
+        )
+        total_debt_credit_overdue['DEBT_CREDIT_RATIO'] = (
+            total_debt_credit_overdue['TOTAL_DEBT'] /
+            total_debt_credit_overdue['TOTAL_CREDIT'])
+
+        total_debt_credit_overdue['OVERDUE_DEBT_RATIO'] = (
+            total_debt_credit_overdue['TOTAL_OVERDUE_DEBT'] /
+            total_debt_credit_overdue['TOTAL_DEBT'])
+
+        # from bureau_bal
+        # todo: (LKI) Dig out more from bureau bal!
+        self.bureau_bal['IS_FRESH_INSTALLMENT'] = \
+            (self.bureau_bal.MONTHS_BALANCE >= -3)
+
+        self.bureau_bal = (
+            self.bureau_bal.merge(
+                self.bureau_bal.groupby('SK_ID_BUREAU')
+                ['IS_FRESH_INSTALLMENT']
+                .any()
+                .astype(int)
+                .reset_index()
+                .rename(columns={'IS_FRESH_INSTALLMENT': 'HAS_FRESH_INSTALLMENT'}),
+                how='left', on='SK_ID_BUREAU')
+
+        )
+
+        assert np.issubdtype(self.bureau_bal.STATUS.dtype, int), \
+            'Next feature needs bureau_bal.STATUS label-encoded!'
+
+        self.bureau_bal['IS_DPD'] = self.bureau_bal.STATUS > 2
+
+        self.bureau_bal = (
+            self.bureau_bal.merge(
+                self.bureau_bal.groupby('SK_ID_BUREAU')['IS_DPD']
+                .any()
+                .astype(int)
+                .reset_index()
+                .rename(columns={'IS_DPD': 'HAS_DPDs'}),
+                how='left', on='SK_ID_BUREAU')
+        )
+        self.bureau_bal.drop(['IS_DPD', 'IS_FRESH_INSTALLMENT',
+                              'MONTHS_BALANCE', 'STATUS'], axis=1, inplace=True)
 
         self.bureau = (
             self.bureau
                 .merge(n_unique_categoricals, **merge_cfg)
                 .merge(n_entries, **merge_cfg)
                 .merge(amt_active_credits, **merge_cfg)
-                .merge(sorted_days_credit.loc[:,
-                       ['SK_ID_BUREAU', 'DAYS_CREDIT_DIFF']],
+                .merge(sorted_days_credit.loc[:, ['SK_ID_BUREAU',
+                                                  'DAYS_CREDIT_DIFF']],
                        how='left', on='SK_ID_BUREAU')
                 .merge(days_diff_std, **merge_cfg)
+                .merge(total_debt_credit_overdue.loc[:, [col_user_id,
+                                                         'DEBT_CREDIT_RATIO',
+                                                         'OVERDUE_DEBT_RATIO']],
+                       **merge_cfg)
+                .merge(self.bureau_bal
+                       .groupby('SK_ID_BUREAU')
+                       .mean()
+                       .reset_index(),
+                       how='left', on='SK_ID_BUREAU')
         )
         self.bureau.drop(['SK_ID_BUREAU', *self.cat_encode['bureau'].keys()],
                          axis=1, inplace=True)

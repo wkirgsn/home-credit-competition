@@ -58,7 +58,7 @@ lgbm_cfg = {
                 'random_state': 10
        },
     # These found params are shit
-    'params_found_by_skopt_run_1': {
+    'params_found_by_skopt_run_1': {  # takes long, mean_auc = 0.766
         'max_depth': 8,
         'random_state': 2974,
         'scale_pos_weight': 0.000396,
@@ -73,17 +73,7 @@ lgbm_cfg = {
         'reg_lambda': 4.0e-07,
         'subsample': 0.881
     },
-    'params_found_by_skopt_run_2': {'min_child_samples': 1, 'max_depth': 8,
-                                    'min_child_weight': 4.577696937828468,
-                                    'subsample': 1.0, 'subsample_freq': 0,
-                                    'scale_pos_weight': 0.02683733826973307,
-                                    'reg_lambda': 3.165773115197623e-06,
-                                    'colsample_bytree': 1.0,
-                                    'reg_alpha': 0.19555248732369593,
-                                    'random_state': 2157,
-                                    'learning_rate': 0.020903565665566698,
-                                    'num_leaves': 16,
-                                    'min_split_gain': 0.00023926952613119988},
+
     'hp_skopt_space': {
         'learning_rate': (0.01, 1.0, 'log-uniform'),
         'num_leaves': (16, 128),
