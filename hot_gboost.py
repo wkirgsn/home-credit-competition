@@ -36,7 +36,7 @@ def main():
 
     dm = DataManager()
     dm.factorize_categoricals()
-    dm.get_special_features()  # todo: refactor this function
+    dm.dig_up_features()  # todo: refactor this function
     dm.handle_na()  # todo: when to fill NaNs?
 
     data_train, data_test = dm.merge_tables()  # pandas.DataFrame

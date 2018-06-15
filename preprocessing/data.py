@@ -111,21 +111,18 @@ class DataManager:
                 _find_cats_and_factorize(self.installments, prll)
 
     @measure_time
-    def get_special_features(self):
-        """Heavy Feature Engineering"""
-
-        print('Engineer features...')
+    def _dig_into_pos_cash(self):
+        print('dig into pos cash..')
 
         merge_cfg = {'how': 'left',
                      'on': col_user_id}
-        # todo: (LKI) add features!!!
-        # POS CASH
+
         more_on_contract_status = (
             self.POS_CASH[[col_user_id, *self.cat_encode['pos_cash'].keys()]]
                 .groupby(col_user_id)
                 .agg(['count', 'nunique'])
                 .reset_index()
-                )
+        )
         # flatten multiindex
         more_on_contract_status.columns = \
             ['_'.join(col).strip('_') for col in
@@ -138,25 +135,13 @@ class DataManager:
                             *self.cat_encode['pos_cash'].keys()],
                            axis=1, inplace=True)
 
-        # CREDIT CARD
-        # todo: (LKI) more more more, see references!
-        more_on_contract_status = (
-            self.credit_card[[col_user_id,
-                              *self.cat_encode['credit_card'].keys()]]
-                .groupby(col_user_id)
-                .agg(['nunique', 'count'])
-                .reset_index())
-        # flatten multiindex
-        more_on_contract_status.columns = \
-            ['_'.join(col).strip('_') for col in
-             more_on_contract_status.columns.values]
-        self.credit_card = self.credit_card.merge(more_on_contract_status,
-                                                  **merge_cfg)
-        self.credit_card.drop(['SK_ID_PREV',
-                               *self.cat_encode['credit_card'].keys()],
-                              axis=1, inplace=True)
+    @measure_time
+    def _dig_into_bureau(self):
+        print('dig into bureau and bureau bal..')
 
-        # BUREAU
+        merge_cfg = {'how': 'left',
+                     'on': col_user_id}
+
         """Source: https://www.kaggle.com/shanth84/
         home-credit-bureau-data-feature-engineering/notebook
         """
@@ -198,22 +183,22 @@ class DataManager:
                 .reset_index(drop=True)
         )
         sorted_days_credit['NEG_DAYS_CREDIT'] = \
-            sorted_days_credit['DAYS_CREDIT']*-1
+            sorted_days_credit['DAYS_CREDIT'] * -1
         sorted_days_credit['DAYS_CREDIT_DIFF'] = (
             sorted_days_credit.groupby(col_user_id)['NEG_DAYS_CREDIT']
-            .diff()
-            .fillna(0)
-            .astype('uint16')
+                .diff()
+                .fillna(0)
+                .astype('uint16')
         )
 
         days_diff_std = (
             sorted_days_credit[[col_user_id, 'DAYS_CREDIT_DIFF']]
-            .drop(sorted_days_credit[sorted_days_credit.DAYS_CREDIT_DIFF
-                                     == 0].index)
-            .groupby(col_user_id)
-            .agg('std')
-            .reset_index()
-            .rename(columns={'DAYS_CREDIT_DIFF': 'DAYS_CREDIT_DIFF_STD'})
+                .drop(sorted_days_credit[sorted_days_credit.DAYS_CREDIT_DIFF
+                                         == 0].index)
+                .groupby(col_user_id)
+                .agg('std')
+                .reset_index()
+                .rename(columns={'DAYS_CREDIT_DIFF': 'DAYS_CREDIT_DIFF_STD'})
         )
 
         total_debt_credit_overdue = (
@@ -247,10 +232,11 @@ class DataManager:
             self.bureau_bal.merge(
                 self.bureau_bal.groupby('SK_ID_BUREAU')
                 ['IS_FRESH_INSTALLMENT']
-                .any()
-                .astype(int)
-                .reset_index()
-                .rename(columns={'IS_FRESH_INSTALLMENT': 'HAS_FRESH_INSTALLMENT'}),
+                    .any()
+                    .astype(int)
+                    .reset_index()
+                    .rename(
+                    columns={'IS_FRESH_INSTALLMENT': 'HAS_FRESH_INSTALLMENT'}),
                 how='left', on='SK_ID_BUREAU')
 
         )
@@ -263,10 +249,10 @@ class DataManager:
         self.bureau_bal = (
             self.bureau_bal.merge(
                 self.bureau_bal.groupby('SK_ID_BUREAU')['IS_DPD']
-                .any()
-                .astype(int)
-                .reset_index()
-                .rename(columns={'IS_DPD': 'HAS_DPDs'}),
+                    .any()
+                    .astype(int)
+                    .reset_index()
+                    .rename(columns={'IS_DPD': 'HAS_DPDs'}),
                 how='left', on='SK_ID_BUREAU')
         )
         self.bureau_bal.drop(['IS_DPD', 'IS_FRESH_INSTALLMENT',
@@ -294,7 +280,43 @@ class DataManager:
         self.bureau.drop(['SK_ID_BUREAU', *self.cat_encode['bureau'].keys()],
                          axis=1, inplace=True)
 
-        # PREV APP
+    @measure_time
+    def _dig_into_credit_card_bal(self):
+        print('dig into credit card balance..')
+
+        merge_cfg = {'how': 'left',
+                     'on': col_user_id}
+
+        # todo: (LKI) more more more, see references!
+        more_on_contract_status = (
+            self.credit_card[[col_user_id,
+                              *self.cat_encode['credit_card'].keys()]]
+                .groupby(col_user_id)
+                .agg(['nunique', 'count'])
+                .reset_index())
+
+        # flatten multiindex
+        more_on_contract_status.columns = \
+            ['_'.join(col).strip('_') for col in
+             more_on_contract_status.columns.values]
+        self.credit_card = self.credit_card.merge(more_on_contract_status,
+                                                  **merge_cfg)
+        self.credit_card.drop(['SK_ID_PREV',
+                               *self.cat_encode['credit_card'].keys()],
+                              axis=1, inplace=True)
+
+    @measure_time
+    def _dig_into_installments(self):
+        print('dig into installments..')
+        pass
+
+    @measure_time
+    def _dig_into_prev_app(self):
+        print('dig into previous applications..')
+
+        merge_cfg = {'how': 'left',
+                     'on': col_user_id}
+
         previous_app_cat_features = [f for f in self.previous_app.columns if
                                      self.previous_app[f].dtype == 'object']
         for f in previous_app_cat_features:
@@ -305,6 +327,21 @@ class DataManager:
             self.previous_app = self.previous_app.merge(nunique, **merge_cfg)
             self.previous_app.drop([f], axis=1, inplace=True)
         self.previous_app.drop(['SK_ID_PREV'], axis=1, inplace=True)
+
+    @measure_time
+    def _dig_into_app_main(self):
+        print('dig into main applications..')
+        pass
+
+    def dig_up_features(self):
+        """Heavy Feature Engineering"""
+
+        self._dig_into_pos_cash()
+        self._dig_into_bureau()
+        self._dig_into_credit_card_bal()
+        self._dig_into_installments()
+        self._dig_into_prev_app()
+        self._dig_into_app_main()
 
     @measure_time
     def merge_tables(self):
